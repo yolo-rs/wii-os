@@ -1,9 +1,12 @@
 <!DOCTYPE html>
-<html>
+<html lang="fr">
 
 <head>
     <meta charset="utf-8">
-    <title>Gecko</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Gecko — Émulateur Wii WebGPU et Chaîne BT3</title>
+    <meta name="description" content="Émulateur Nintendo Wii WebGPU et WebAssembly (Gecko) avec chargement RVZ par blocs de 8 Mo et contrôles Budokai Tenkaichi 3.">
+    <link rel="canonical" href="https://wii.aphrody.com/emulator">
     <style>
         * {
             margin: 0;
@@ -121,8 +124,9 @@
 </head>
 
 <body>
-    <!-- shoutout to hazel, vxpm, geo, pdawg, lycoder and everyone else :> -->
-
+    <a href="#main-content" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">Aller au contenu principal</a>
+    <main id="main-content">
+    <h1 style="font-size:18px;margin-bottom:12px;color:#f5f7fa;">Gecko — Émulateur Wii WebGPU</h1>
     <div id="setup">
         <div class="file-row">
             <label class="file-label">Disc / IPL / DOL:</label>
@@ -155,20 +159,21 @@
         <progress id="load-progress" max="100" value="0" hidden></progress>
         <p id="load-status" role="status" aria-live="polite">Wii RVZ disc images are read locally in 8 MiB chunks. Gecko includes a licensed Wii ROM-font fallback; a user IPL dump can override it.</p>
     </div>
+    </main>
 
-    <div id="bt3-dock" style="display:none; position:fixed; bottom:10px; left:50%; transform:translateX(-50%); z-index:9999; background:rgba(14,18,28,0.88); border:1px solid rgba(110,200,255,0.45); border-radius:999px; padding:6px 14px; gap:8px; align-items:center; backdrop-filter:blur(10px); box-shadow:0 8px 24px rgba(0,0,0,0.6); font-size:12px;">
-        <span style="color:#7ee0ff; font-weight:700; margin-right:4px;">🐉 BT3 Wii WebGPU</span>
-        <button onclick="window.triggerBt3Action('press_a')" style="background:#1e293b; color:#e2e8f0; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">⏭ Skip/Start (A+)</button>
-        <button onclick="window.triggerBt3Action('kamehameha')" style="background:#1e293b; color:#fcd34d; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">🔥 Kamehameha (Q)</button>
-        <button onclick="window.triggerBt3Action('genkidama')" style="background:#1e293b; color:#60a5fa; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">🌐 Genkidama (E)</button>
-        <button onclick="window.triggerBt3Action('transform')" style="background:#1e293b; color:#c084fc; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">✨ Transform (R)</button>
-        <button onclick="window.triggerBt3Action('toggle_60hz')" style="background:#1e293b; color:#38bdf8; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">⚡ 60Hz PAL</button>
-        <button onclick="window.triggerBt3Action('save_state')" style="background:#1e293b; color:#e2e8f0; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">💾 Save (F5)</button>
-        <button onclick="window.triggerBt3Action('load_state')" style="background:#1e293b; color:#e2e8f0; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">📂 Load (F8)</button>
-        <button onclick="window.triggerBt3Action('home')" style="background:#1e293b; color:#e2e8f0; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">🏠 Wii Home (H)</button>
-        <button onclick="window.triggerBt3Action('toggle_re_inspector')" style="background:#312e81; color:#c7d2fe; border:1px solid #6366f1; border-radius:999px; padding:4px 10px; cursor:pointer;">🔬 RE SDK</button>
-        <a href="/shenron" style="background:linear-gradient(135deg,#059669,#047857); color:#fef08a; border:1px solid #34d399; border-radius:999px; padding:4px 10px; text-decoration:none; font-weight:700;">🐉 Mini-Jeu & CDN Shenron</a>
-    </div>
+    <nav id="bt3-dock" aria-label="Contrôles rapides Budokai Tenkaichi 3" style="display:none; position:fixed; bottom:10px; left:50%; transform:translateX(-50%); z-index:9999; background:rgba(14,18,28,0.88); border:1px solid rgba(110,200,255,0.45); border-radius:999px; padding:6px 14px; gap:8px; align-items:center; backdrop-filter:blur(10px); box-shadow:0 8px 24px rgba(0,0,0,0.6); font-size:12px;">
+        <span style="color:#7ee0ff; font-weight:700; margin-right:4px;">BT3 Wii WebGPU</span>
+        <button onclick="window.triggerBt3Action('press_a')" style="background:#1e293b; color:#e2e8f0; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">Skip/Start (A+)</button>
+        <button onclick="window.triggerBt3Action('kamehameha')" style="background:#1e293b; color:#fcd34d; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">Kamehameha (Q)</button>
+        <button onclick="window.triggerBt3Action('genkidama')" style="background:#1e293b; color:#60a5fa; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">Genkidama (E)</button>
+        <button onclick="window.triggerBt3Action('transform')" style="background:#1e293b; color:#c084fc; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">Transform (R)</button>
+        <button onclick="window.triggerBt3Action('toggle_60hz')" style="background:#1e293b; color:#38bdf8; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">60Hz PAL</button>
+        <button onclick="window.triggerBt3Action('save_state')" style="background:#1e293b; color:#e2e8f0; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">Save (F5)</button>
+        <button onclick="window.triggerBt3Action('load_state')" style="background:#1e293b; color:#e2e8f0; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">Load (F8)</button>
+        <button onclick="window.triggerBt3Action('home')" style="background:#1e293b; color:#e2e8f0; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">Wii Home (H)</button>
+        <button onclick="window.triggerBt3Action('toggle_re_inspector')" style="background:#312e81; color:#c7d2fe; border:1px solid #6366f1; border-radius:999px; padding:4px 10px; cursor:pointer;">RE SDK</button>
+        <a href="/shenron" style="background:linear-gradient(135deg,#059669,#047857); color:#fef08a; border:1px solid #34d399; border-radius:999px; padding:4px 10px; text-decoration:none; font-weight:700;">Mini-Jeu &amp; CDN Shenron</a>
+    </nav>
 
     <script type="module">
         import init, {

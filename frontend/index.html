@@ -1,9 +1,11 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="fr">
   <head>
     <meta charset="utf-8">
-    <title>Menu Wii</title>
+    <title>Wii-OS — Menu Système 4.3E et Chaînes WebGPU</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Interface système Nintendo Wii 4.3E avec grille de chaînes interactives, audio matériel et lanceur WebGPU Budokai Tenkaichi 3.">
+    <link rel="canonical" href="https://wii.aphrody.com/">
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
 
@@ -11,16 +13,21 @@
     <link rel="stylesheet" href="assets/css/tokens.css?v=menu-tokens-v1">
     <link rel="stylesheet" href="assets/css/menu.css?v=wii-canvas-v1">
     <link rel="stylesheet" href="assets/css/settings.css?v=wii-canvas-v1">
-    <script src="assets/js/views.js?v=wii-view-scripts-v2"></script>
-    <script src="assets/js/main.js?v=wii-canvas-v1"></script>
+    <script defer src="assets/js/views.js?v=wii-view-scripts-v2"></script>
+    <script defer src="assets/js/main.js?v=wii-canvas-v1"></script>
     <script type="module" src="assets/js/wii-os-adapter.js?v=wii-gamepad-v1"></script>
   </head>
 
   <body>
-    <div class="app"></div>
+    <a href="#main-content" style="position:absolute;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden;">Aller au menu principal Wii</a>
+    <header style="position:absolute;left:-9999px;">
+      <h1>Wii-OS Menu Système 4.3E</h1>
+      <nav aria-label="Chaînes Wii"><a href="/emulator">Émulateur Gecko</a> | <a href="/shenron">Chaîne Shenron</a></nav>
+    </header>
+    <main id="main-content" class="app"></main>
     <div class="black"></div>
     <div id="boot-sequence" class="boot-sequence" aria-label="Démarrage Wii" role="status">
-      <img class="boot-logo" src="assets/images/channel-wiilogo.png" alt="Wii">
+      <img class="boot-logo" src="assets/images/channel-wiilogo.png" alt="Wii" width="240" height="80">
       <video id="boot-video" muted playsinline preload="none" aria-label="Vidéo de démarrage Wii"></video>
       <button id="skip-boot" type="button">Passer</button>
     </div>
