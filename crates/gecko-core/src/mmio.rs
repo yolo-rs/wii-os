@@ -1,0 +1,837 @@
+pub mod bus;
+pub mod constants;
+pub mod fp;
+pub mod macros;
+pub mod traits;
+
+use crate::system::{SystemId, WII};
+use constants::*;
+use rustc_hash::FxHashSet;
+
+// A page must fit the entire locked cache without mapping bytes beyond it.
+pub const FASTMEM_LUT_PAGES: usize = 1 << 18;
+pub const FASTMEM_PAGE_BYTES: usize = 1 << 14;
+pub const FASTMEM_PAGE_MASK: u32 = (FASTMEM_PAGE_BYTES as u32) - 1;
+pub const FASTMEM_PAGE_SHIFT: u32 = 14;
+
+pub const CODE_LINE_BYTES: u32 = 32;
+pub const CODE_LINE_SHIFT: u32 = 5;
+pub const CODE_LINE_MASK: u32 = !(CODE_LINE_BYTES - 1);
+
+pub const MEMORY_DIRTY_PAGE_SHIFT: u32 = 12;
+pub const MEMORY_DIRTY_PAGE_BYTES: usize = 1 << MEMORY_DIRTY_PAGE_SHIFT;
+const MEM1_DIRTY_PAGES: usize = RAM_SIZE.div_ceil(MEMORY_DIRTY_PAGE_BYTES);
+const MEM2_DIRTY_PAGES: usize = MEM2_SIZE.div_ceil(MEMORY_DIRTY_PAGE_BYTES);
+
+pub const PHYS_MASK: u32 = 0x3FFF_FFFF;
+
+pub const MEM1_LINES: usize = RAM_SIZE >> CODE_LINE_SHIFT as usize;
+pub const MEM2_LINES: usize = MEM2_SIZE >> CODE_LINE_SHIFT as usize;
+
+pub struct Mmio<const SYSTEM: SystemId> {
+    pub ram: Vec<u8>,
+    pub efb: Vec<u8>,
+    pub hwr: Vec<u8>,
+    pub ipl: Vec<u8>,
+    pub lcache: Vec<u8>,
+    pub mem2: Vec<u8>,
+    pub ram_ptr: usize,
+    pub fastmem_lut: Vec<usize>,
+    pub fastmem_lut_ptr: usize,
+    pub(crate) lcache_fastmem_ptr: usize,
+    pub code_refcount: Box<[u8]>,
+    pub code_refcount_ptr: usize,
+    memory_write_generation: u64,
+    memory_page_generations: Box<[u64]>,
+    efb_writeback_pages: FxHashSet<u32>,
+    efb_writeback_ranges: Vec<std::ops::Range<u32>>,
+    #[cfg(feature = "jit")]
+    pub pending_icbi: FxHashSet<u32>,
+    #[cfg(feature = "jit")]
+    pub jit_dirty: u8,
+}
+
+/// Read-only view over MEM1 plus (on Wii) MEM2, addressed by physical
+/// address. Lets GP code that doesn't care about the bank just pass the
+/// view through and call `.slice(addr, len)` to resolve.
+pub struct RamView<'a> {
+    pub mem1: &'a [u8],
+    pub mem2: &'a [u8],
+    pub memory_page_generations: &'a [u64],
+}
+
+impl<'a> RamView<'a> {
+    /// Resolve `[addr..addr+len]` to a slice in whichever bank holds it.
+    /// Returns `None` when the range is outside both banks or crosses a
+    /// bank boundary.
+    #[inline(always)]
+    pub fn slice(&self, addr: usize, len: usize) -> Option<&'a [u8]> {
+        let end = addr.checked_add(len)?;
+        if addr < self.mem1.len() {
+            (end <= self.mem1.len()).then(|| &self.mem1[addr..end])
+        } else if (MEM2_BASE as usize..).contains(&addr) {
+            let off = addr - MEM2_BASE as usize;
+            let end_off = off.checked_add(len)?;
+            (end_off <= self.mem2.len()).then(|| &self.mem2[off..end_off])
+        } else {
+            None
+        }
+    }
+
+    #[inline]
+    pub fn range_generation(&self, addr: usize, len: usize) -> Option<u64> {
+        if len == 0 {
+            return Some(0);
+        }
+
+        let end = addr.checked_add(len - 1)?;
+        let (first, last) = if end < self.mem1.len() {
+            (addr >> MEMORY_DIRTY_PAGE_SHIFT, end >> MEMORY_DIRTY_PAGE_SHIFT)
+        } else if addr >= MEM2_BASE as usize && end < (MEM2_BASE as usize).checked_add(self.mem2.len())? {
+            let first = MEM1_DIRTY_PAGES + ((addr - MEM2_BASE as usize) >> MEMORY_DIRTY_PAGE_SHIFT);
+            let last = MEM1_DIRTY_PAGES + ((end - MEM2_BASE as usize) >> MEMORY_DIRTY_PAGE_SHIFT);
+            (first, last)
+        } else {
+            return None;
+        };
+
+        self.memory_page_generations.get(first..=last)?.iter().copied().max()
+    }
+}
+
+/// Mutable counterpart of `RamView`. Used by EFB writeback into RAM.
+pub struct RamViewMut<'a> {
+    pub mem1: &'a mut [u8],
+    pub mem2: &'a mut [u8],
+    pub memory_page_generations: &'a [u64],
+}
+
+impl<'a> RamViewMut<'a> {
+    #[inline(always)]
+    pub fn as_view(&self) -> RamView<'_> {
+        RamView {
+            mem1: self.mem1,
+            mem2: self.mem2,
+            memory_page_generations: self.memory_page_generations,
+        }
+    }
+
+    #[inline(always)]
+    pub fn slice_mut(&mut self, addr: usize, len: usize) -> Option<&mut [u8]> {
+        let end = addr.checked_add(len)?;
+        if addr < self.mem1.len() {
+            (end <= self.mem1.len()).then(|| &mut self.mem1[addr..end])
+        } else if (MEM2_BASE as usize..).contains(&addr) {
+            let off = addr - MEM2_BASE as usize;
+            let end_off = off.checked_add(len)?;
+            (end_off <= self.mem2.len()).then(|| &mut self.mem2[off..end_off])
+        } else {
+            None
+        }
+    }
+}
+
+impl<const SYSTEM: SystemId> Mmio<SYSTEM> {
+    pub fn new() -> Self {
+        let ram = vec![0u8; RAM_SIZE];
+        let ram_ptr = ram.as_ptr() as usize;
+        let mem2 = if SYSTEM == WII { vec![0; MEM2_SIZE] } else { Vec::new() };
+
+        let mut fastmem_lut = vec![0usize; FASTMEM_LUT_PAGES];
+
+        // Map MEM1 (24 MiB) at all three aliases:
+        //   * physical 0x0000_0000..0x017F_FFFF
+        //   * cached   0x8000_0000..0x817F_FFFF
+        //   * uncached 0xC000_0000..0xC17F_FFFF
+        let mem1_pages = (RAM_SIZE / FASTMEM_PAGE_BYTES) as u32;
+        let bases = [0x0000_0000u32, 0x8000_0000, 0xC000_0000];
+        for base in bases {
+            let lut_base = (base >> FASTMEM_PAGE_SHIFT) as usize;
+            for i in 0..mem1_pages {
+                let host_addr = ram_ptr + (i as usize) * FASTMEM_PAGE_BYTES;
+                fastmem_lut[lut_base + i as usize] = host_addr;
+            }
+        }
+
+        // Wii: also map MEM2 (64 MiB) at its three aliases:
+        //   * physical 0x1000_0000..0x13FF_FFFF
+        //   * cached   0x9000_0000..0x93FF_FFFF
+        //   * uncached 0xD000_0000..0xD3FF_FFFF
+        if SYSTEM == WII {
+            let mem2_pages = (MEM2_SIZE / FASTMEM_PAGE_BYTES) as u32;
+            let mem2_ptr = mem2.as_ptr() as usize;
+            let bases = [0x1000_0000u32, 0x9000_0000, 0xD000_0000];
+            for base in bases {
+                let lut_base = (base >> FASTMEM_PAGE_SHIFT) as usize;
+                for i in 0..mem2_pages {
+                    let host_addr = mem2_ptr + (i as usize) * FASTMEM_PAGE_BYTES;
+                    fastmem_lut[lut_base + i as usize] = host_addr;
+                }
+            }
+        }
+
+        let fastmem_lut_ptr = fastmem_lut.as_ptr() as usize;
+
+        let refcount_len = if SYSTEM == WII {
+            MEM1_LINES + MEM2_LINES
+        } else {
+            MEM1_LINES
+        };
+        let code_refcount: Box<[u8]> = vec![0u8; refcount_len].into_boxed_slice();
+        let code_refcount_ptr = code_refcount.as_ptr() as usize;
+        let dirty_page_count = if SYSTEM == WII {
+            MEM1_DIRTY_PAGES + MEM2_DIRTY_PAGES
+        } else {
+            MEM1_DIRTY_PAGES
+        };
+
+        Mmio {
+            ram,
+            efb: vec![0; EFB_SIZE],
+            hwr: vec![0; HW_REG_SIZE],
+            ipl: vec![0; 0],
+            lcache: vec![0; LCACHE_SIZE],
+            mem2,
+            ram_ptr,
+            fastmem_lut,
+            fastmem_lut_ptr,
+            lcache_fastmem_ptr: 0,
+            code_refcount,
+            code_refcount_ptr,
+            memory_write_generation: 0,
+            memory_page_generations: vec![0; dirty_page_count].into_boxed_slice(),
+            efb_writeback_pages: FxHashSet::default(),
+            efb_writeback_ranges: Vec::new(),
+            #[cfg(feature = "jit")]
+            pending_icbi: FxHashSet::default(),
+            #[cfg(feature = "jit")]
+            jit_dirty: 0,
+        }
+    }
+
+    pub fn defer_efb_writeback(&mut self, addr: u32, len: usize) {
+        if len == 0 {
+            return;
+        }
+
+        let Ok(len) = u32::try_from(len) else {
+            return;
+        };
+
+        let Some(end) = addr.checked_add(len) else {
+            return;
+        };
+
+        let mut range = addr..end;
+        self.efb_writeback_ranges.retain(|other| {
+            let touches = range.start <= other.end && other.start <= range.end;
+            if touches {
+                range = range.start.min(other.start)..range.end.max(other.end);
+            }
+            !touches
+        });
+        self.efb_writeback_ranges.push(range);
+
+        let first_page = addr >> FASTMEM_PAGE_SHIFT;
+        let last_page = (end - 1) >> FASTMEM_PAGE_SHIFT;
+
+        for page in first_page..=last_page {
+            if !self.efb_writeback_pages.insert(page) {
+                continue;
+            }
+
+            let phys_base = page << FASTMEM_PAGE_SHIFT;
+            let is_fastmem = phys_base <= RAM_END || (SYSTEM == WII && (MEM2_BASE..=MEM2_END).contains(&phys_base));
+            let aliases: &[u32] = if is_fastmem {
+                &[0x0000_0000, 0x8000_0000, 0xC000_0000]
+            } else {
+                &[]
+            };
+
+            for &alias in aliases {
+                self.fastmem_lut[((phys_base | alias) >> FASTMEM_PAGE_SHIFT) as usize] = 0;
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn has_deferred_efb_writebacks(&self) -> bool {
+        !self.efb_writeback_ranges.is_empty()
+    }
+
+    #[inline(always)]
+    pub fn efb_writeback_needed(&self, phys: u32, len: usize) -> bool {
+        if len == 0 || self.efb_writeback_ranges.is_empty() {
+            return false;
+        }
+
+        let end = phys as u64 + len as u64;
+        self.efb_writeback_ranges
+            .iter()
+            .any(|range| phys < range.end && (range.start as u64) < end)
+    }
+
+    pub fn clear_deferred_efb_writebacks(&mut self) {
+        self.efb_writeback_ranges.clear();
+        if !self.efb_writeback_pages.is_empty() {
+            self.memory_write_generation = self.memory_write_generation.wrapping_add(1).max(1);
+        }
+
+        let write_generation = self.memory_write_generation;
+
+        for page in self.efb_writeback_pages.drain() {
+            let phys_base = page << FASTMEM_PAGE_SHIFT;
+            let phys_end = phys_base + FASTMEM_PAGE_BYTES as u32 - 1;
+
+            if let (Some(first), Some(last)) = (
+                Self::memory_dirty_page_index(phys_base),
+                Self::memory_dirty_page_index(phys_end),
+            ) {
+                self.memory_page_generations[first..=last].fill(write_generation);
+            }
+
+            let (host_addr, aliases): (usize, &[u32]) = if phys_base <= RAM_END {
+                (
+                    self.ram_ptr + phys_base as usize,
+                    &[0x0000_0000, 0x8000_0000, 0xC000_0000],
+                )
+            } else if SYSTEM == WII && (MEM2_BASE..=MEM2_END).contains(&phys_base) {
+                (
+                    self.mem2.as_ptr() as usize + (phys_base - MEM2_BASE) as usize,
+                    &[0x0000_0000, 0x8000_0000, 0xC000_0000],
+                )
+            } else {
+                continue;
+            };
+
+            for &alias in aliases {
+                self.fastmem_lut[((phys_base | alias) >> FASTMEM_PAGE_SHIFT) as usize] = host_addr;
+            }
+        }
+    }
+
+    /// Resolve a physical address to a `(backing_slice, offset)` pair
+    /// This is the one place that maps physical addresses to memory regions
+    #[inline(always)]
+    fn resolve(&self, phys: u32) -> (&[u8], usize) {
+        match phys {
+            RAM_BASE..=RAM_END => (&self.ram, phys as usize),
+            EFB_BASE..=EFB_END => (&self.efb, (phys - EFB_BASE) as usize),
+            HW_REG_BASE..=HW_REG_END => (&self.hwr, (phys - HW_REG_BASE) as usize),
+            IPL_BASE..=IPL_END => (&self.ipl, (phys - IPL_BASE) as usize),
+            LCACHE_BASE..=LCACHE_END => (&self.lcache, (phys - LCACHE_BASE) as usize),
+            MEM2_BASE..=MEM2_END if SYSTEM == WII => (&self.mem2, (phys - MEM2_BASE) as usize),
+            _ => {
+                tracing::error!(phys_addr = format!("{:08X}", phys), "unmapped physical read");
+                (&self.ram, 0)
+            }
+        }
+    }
+
+    /// Resolve a physical address to a `(backing_slice, offset)` pair
+    /// This is the one place that maps physical addresses to memory regions
+    /// Returns a mutable slice for write operations
+    #[inline(always)]
+    fn resolve_mut(&mut self, phys: u32) -> (&mut [u8], usize) {
+        match phys {
+            RAM_BASE..=RAM_END => (&mut self.ram, phys as usize),
+            EFB_BASE..=EFB_END => (&mut self.efb, (phys - EFB_BASE) as usize),
+            HW_REG_BASE..=HW_REG_END => (&mut self.hwr, (phys - HW_REG_BASE) as usize),
+            IPL_BASE..=IPL_END => (&mut self.ipl, (phys - IPL_BASE) as usize),
+            LCACHE_BASE..=LCACHE_END => (&mut self.lcache, (phys - LCACHE_BASE) as usize),
+            MEM2_BASE..=MEM2_END if SYSTEM == WII => (&mut self.mem2, (phys - MEM2_BASE) as usize),
+            _ => {
+                tracing::error!(phys_addr = format!("{:08X}", phys), "unmapped physical write");
+                (&mut self.ram, 0)
+            }
+        }
+    }
+
+    #[inline(always)]
+    pub fn phys_read_u8(&self, addr: u32) -> u8 {
+        let (slice, offset) = self.resolve(addr);
+        tracing::trace!(
+            phys_addr = format!("{:08X}", addr),
+            value = format!("{:02X}", slice[offset]),
+            "read_u8"
+        );
+        slice[offset]
+    }
+
+    #[inline(always)]
+    pub fn phys_read_u16(&self, addr: u32) -> u16 {
+        let (slice, offset) = self.resolve(addr);
+        let value = unsafe { read_be_u16_unchecked(slice.as_ptr().add(offset)) };
+        tracing::trace!(
+            phys_addr = format!("{:08X}", addr),
+            value = format!("{:04X}", value),
+            "read_u16"
+        );
+        value
+    }
+
+    #[inline(always)]
+    pub fn phys_read_u32(&self, addr: u32) -> u32 {
+        let (slice, offset) = self.resolve(addr);
+        let value = unsafe { read_be_u32_unchecked(slice.as_ptr().add(offset)) };
+        tracing::trace!(
+            phys_addr = format!("{:08X}", addr),
+            value = format!("{:08X}", value),
+            "read_u32"
+        );
+        value
+    }
+
+    #[inline(always)]
+    pub fn phys_read_u64(&self, addr: u32) -> u64 {
+        ((self.phys_read_u32(addr) as u64) << 32) | self.phys_read_u32(addr + 4) as u64
+    }
+
+    #[inline(always)]
+    pub fn phys_write_u64(&mut self, addr: u32, value: u64) {
+        self.phys_write_u32(addr, (value >> 32) as u32);
+        self.phys_write_u32(addr + 4, value as u32);
+    }
+
+    #[inline(always)]
+    pub fn phys_write_u8(&mut self, addr: u32, value: u8) {
+        let (slice, offset) = self.resolve_mut(addr);
+        tracing::trace!(
+            phys_addr = format!("{:08X}", addr),
+            value = format!("{:02X}", value),
+            "write_u8"
+        );
+        slice[offset] = value;
+    }
+
+    #[inline(always)]
+    pub fn phys_write_u16(&mut self, addr: u32, value: u16) {
+        let (slice, offset) = self.resolve_mut(addr);
+        tracing::trace!(
+            phys_addr = format!("{:08X}", addr),
+            value = format!("{:04X}", value),
+            "write_u16"
+        );
+        unsafe { write_be_u16_unchecked(slice.as_mut_ptr().add(offset), value) };
+    }
+
+    #[inline(always)]
+    pub fn phys_write_u32(&mut self, addr: u32, value: u32) {
+        let (slice, offset) = self.resolve_mut(addr);
+        tracing::trace!(
+            phys_addr = format!("{:08X}", addr),
+            value = format!("{:08X}", value),
+            "write_u32"
+        );
+        unsafe { write_be_u32_unchecked(slice.as_mut_ptr().add(offset), value) };
+    }
+
+    #[inline(always)]
+    pub fn virt_read_u8(&self, addr: u32) -> u8 {
+        self.phys_read_u8(virt_to_phys(addr))
+    }
+
+    #[inline(always)]
+    pub fn virt_read_u16(&self, addr: u32) -> u16 {
+        self.phys_read_u16(virt_to_phys(addr))
+    }
+
+    #[inline(always)]
+    pub fn virt_read_u32(&self, addr: u32) -> u32 {
+        self.phys_read_u32(virt_to_phys(addr))
+    }
+
+    #[inline(always)]
+    pub fn virt_write_u8(&mut self, addr: u32, value: u8) {
+        self.phys_write_u8(virt_to_phys(addr), value);
+    }
+
+    #[inline(always)]
+    pub fn virt_write_u16(&mut self, addr: u32, value: u16) {
+        self.phys_write_u16(virt_to_phys(addr), value);
+    }
+
+    #[inline(always)]
+    pub fn virt_write_u32(&mut self, addr: u32, value: u32) {
+        self.phys_write_u32(virt_to_phys(addr), value);
+    }
+
+    /// Return a slice of physical memory starting at `addr` with length `len`
+    /// Useful for bulk reads (e.g. disassembler)
+    #[inline(always)]
+    pub fn phys_slice(&self, addr: u32, len: usize) -> &[u8] {
+        let (slice, offset) = self.resolve(addr);
+        &slice[offset..offset + len]
+    }
+
+    #[inline(always)]
+    pub fn phys_slice_mut(&mut self, addr: u32, len: usize) -> &mut [u8] {
+        let (slice, offset) = self.resolve_mut(addr);
+        &mut slice[offset..offset + len]
+    }
+
+    #[inline(always)]
+    fn code_refcount_index(phys: u32) -> Option<usize> {
+        match phys {
+            RAM_BASE..=RAM_END => Some((phys >> CODE_LINE_SHIFT) as usize),
+            MEM2_BASE..=MEM2_END if SYSTEM == WII => {
+                Some(MEM1_LINES + ((phys - MEM2_BASE) >> CODE_LINE_SHIFT) as usize)
+            }
+            _ => None,
+        }
+    }
+
+    #[inline(always)]
+    fn for_each_code_line(start: u32, len: u32, mut f: impl FnMut(u32)) {
+        if len == 0 {
+            return;
+        }
+
+        let mut p = start & CODE_LINE_MASK;
+        let end = start.wrapping_add(len - 1) & CODE_LINE_MASK;
+        loop {
+            f(p);
+
+            if p == end {
+                break;
+            }
+
+            p = p.wrapping_add(CODE_LINE_BYTES);
+        }
+    }
+
+    pub fn mark_code(&mut self, start: u32, len: u32) {
+        Self::for_each_code_line(start, len, |line| {
+            if let Some(i) = Self::code_refcount_index(line) {
+                let v = &mut self.code_refcount[i];
+                *v = v.saturating_add(1);
+            }
+        });
+    }
+
+    pub fn unmark_code(&mut self, start: u32, len: u32) {
+        Self::for_each_code_line(start, len, |line| {
+            if let Some(i) = Self::code_refcount_index(line) {
+                let v = &mut self.code_refcount[i];
+                if *v != u8::MAX {
+                    *v = v.saturating_sub(1);
+                }
+            }
+        });
+    }
+
+    #[inline(always)]
+    pub fn is_code_chunk(&self, phys: u32) -> bool {
+        match Self::code_refcount_index(phys) {
+            Some(i) => self.code_refcount[i] != 0,
+            None => false,
+        }
+    }
+
+    pub fn clear_code_refcount(&mut self) {
+        self.code_refcount.fill(0);
+    }
+
+    #[inline]
+    fn memory_dirty_page_index(phys: u32) -> Option<usize> {
+        match phys {
+            RAM_BASE..=RAM_END => Some((phys as usize) >> MEMORY_DIRTY_PAGE_SHIFT),
+            MEM2_BASE..=MEM2_END if SYSTEM == WII => {
+                Some(MEM1_DIRTY_PAGES + (((phys - MEM2_BASE) as usize) >> MEMORY_DIRTY_PAGE_SHIFT))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn mark_memory_dirty_range(&mut self, phys: u32, len: u32) {
+        if len == 0 {
+            return;
+        }
+
+        let Some(last_phys) = phys.checked_add(len - 1) else {
+            return;
+        };
+
+        let (Some(first), Some(last)) = (
+            Self::memory_dirty_page_index(phys),
+            Self::memory_dirty_page_index(last_phys),
+        ) else {
+            return;
+        };
+
+        self.memory_write_generation = self.memory_write_generation.wrapping_add(1).max(1);
+        self.memory_page_generations[first..=last].fill(self.memory_write_generation);
+    }
+
+    #[cfg(feature = "jit")]
+    #[inline(always)]
+    pub fn queue_icbi_for_range(&mut self, phys: u32, len: u32) {
+        self.mark_memory_dirty_range(phys, len);
+        Self::for_each_code_line(phys, len, |line| {
+            if self.is_code_chunk(line) {
+                self.pending_icbi.insert(line);
+                self.jit_dirty = 1;
+            }
+        });
+    }
+
+    /// Read-only view spanning MEM1 and (on Wii) MEM2. Used by the GP path
+    /// so texture / vertex / TLUT reads can resolve addresses in either bank.
+    #[inline(always)]
+    pub fn ram_view(&self) -> RamView<'_> {
+        RamView {
+            mem1: &self.ram,
+            mem2: &self.mem2,
+            memory_page_generations: &self.memory_page_generations,
+        }
+    }
+
+    /// Mutable counterpart.
+    #[inline(always)]
+    pub fn ram_view_mut(&mut self) -> RamViewMut<'_> {
+        RamViewMut {
+            mem1: &mut self.ram,
+            mem2: &mut self.mem2,
+            memory_page_generations: &self.memory_page_generations,
+        }
+    }
+
+    /// Copy `size_of::<T>()` bytes starting at `addr` into a fresh `T`. The
+    /// caller is responsible for declaring `T` with `#[repr(C)]` and using
+    /// big-endian wrappers (e.g. `zerocopy::byteorder::big_endian::U32`) for
+    /// any multibyte integer fields, since PPC memory is big-endian.
+    #[inline(always)]
+    pub fn phys_read_struct<T>(&self, addr: u32) -> T
+    where
+        T: zerocopy::FromBytes + zerocopy::KnownLayout + zerocopy::Immutable,
+    {
+        let bytes = self.phys_slice(addr, core::mem::size_of::<T>());
+        T::read_from_bytes(bytes).expect("phys_read_struct: layout error")
+    }
+
+    /// Return a slice of virtual memory starting at `addr` with length `len`
+    /// This is just a thin wrapper around `phys_slice` that applies virtual-to-physical translation
+    #[inline(always)]
+    pub fn virt_slice(&self, addr: u32, len: usize) -> &[u8] {
+        self.phys_slice(virt_to_phys(addr), len)
+    }
+
+    #[inline(always)]
+    pub fn virt_slice_mut(&mut self, addr: u32, len: usize) -> &mut [u8] {
+        self.phys_slice_mut(virt_to_phys(addr), len)
+    }
+
+    /// Read a typed MMIO register from its physical address
+    #[inline(always)]
+    pub fn read_register<T: traits::MmioRegister>(&self) -> T {
+        let raw = match T::SIZE {
+            1 => self.phys_read_u8(T::ADDR) as u32,
+            2 => self.phys_read_u16(T::ADDR) as u32,
+            4 => self.phys_read_u32(T::ADDR),
+            _ => panic!("unsupported register size {}", T::SIZE),
+        };
+        T::from_raw(raw)
+    }
+
+    /// Write a typed MMIO register to its physical address
+    #[inline(always)]
+    pub fn write_register<T: traits::MmioRegister>(&mut self, value: T) {
+        let raw = value.to_raw();
+        match T::SIZE {
+            1 => self.phys_write_u8(T::ADDR, raw as u8),
+            2 => self.phys_write_u16(T::ADDR, raw as u16),
+            4 => self.phys_write_u32(T::ADDR, raw),
+            _ => panic!("unsupported register size {}", T::SIZE),
+        }
+    }
+
+    pub fn process_locked_cache_dma(
+        &mut self,
+        dmau: &crate::gekko::spr::DmaUpper,
+        dmal: &crate::gekko::spr::DmaLower,
+    ) -> Option<(u32, u32)> {
+        let ram_addr = dmau.ram_addr() << 5;
+        let lcache_vaddr = dmal.lcache_addr() << 5;
+        let lcache_paddr = lcache_vaddr as usize & (LCACHE_SIZE - 1);
+        let block_count = ((dmau.length_hi() as usize) << 2) | dmal.length_lo() as usize;
+        let blocks = if block_count == 0 { 128 } else { block_count };
+        let length = (blocks * 32).min(LCACHE_SIZE - lcache_paddr);
+
+        tracing::debug!(
+            ram_addr = format!("{ram_addr:08X}"),
+            lcache_vaddr = format!("{lcache_vaddr:08X}"),
+            lcache_paddr = format!("{lcache_paddr:08X}"),
+            length,
+            direction = if dmal.load() { "mem -> lcache" } else { "lcache -> mem" },
+            "locked cache DMA"
+        );
+
+        if dmal.load() {
+            let src = self.virt_slice(ram_addr, length).to_vec();
+            self.lcache[lcache_paddr..lcache_paddr + length].copy_from_slice(&src);
+            None
+        } else {
+            let src = self.lcache[lcache_paddr..lcache_paddr + length].to_vec();
+            self.virt_slice_mut(ram_addr, length).copy_from_slice(&src);
+            Some((virt_to_phys(ram_addr), length as u32))
+        }
+    }
+
+    #[inline(always)]
+    pub fn fetch_instruction(&self, addr: u32) -> u32 {
+        let phys = virt_to_phys(addr);
+        if phys <= RAM_END - 3 {
+            self.ram_read_u32(phys)
+        } else {
+            self.phys_read_u32(phys)
+        }
+    }
+
+    #[inline(always)]
+    pub fn ram_read_u8(&self, phys: u32) -> u8 {
+        let value = self.ram[phys as usize];
+        tracing::trace!(
+            phys_addr = format!("{:08X}", phys),
+            value = format!("{:02X}", value),
+            "read_u8"
+        );
+        value
+    }
+
+    #[inline(always)]
+    pub fn ram_read_u16(&self, phys: u32) -> u16 {
+        debug_assert!(phys <= RAM_END - 1);
+        let value = unsafe { read_be_u16_unchecked(self.ram.as_ptr().add(phys as usize)) };
+        tracing::trace!(
+            phys_addr = format!("{:08X}", phys),
+            value = format!("{:04X}", value),
+            "read_u16"
+        );
+        value
+    }
+
+    #[inline(always)]
+    pub fn ram_read_u32(&self, phys: u32) -> u32 {
+        debug_assert!(phys <= RAM_END - 3);
+        let value = unsafe { read_be_u32_unchecked(self.ram.as_ptr().add(phys as usize)) };
+        tracing::trace!(
+            phys_addr = format!("{:08X}", phys),
+            value = format!("{:08X}", value),
+            "read_u32"
+        );
+        value
+    }
+
+    #[inline(always)]
+    pub fn ram_read_u64(&self, phys: u32) -> u64 {
+        debug_assert!(phys <= RAM_END - 7);
+        unsafe { read_be_u64_unchecked(self.ram.as_ptr().add(phys as usize)) }
+    }
+
+    #[inline(always)]
+    pub fn ram_write_u8(&mut self, phys: u32, value: u8) {
+        tracing::trace!(
+            phys_addr = format!("{:08X}", phys),
+            value = format!("{:02X}", value),
+            "write_u8"
+        );
+        self.ram[phys as usize] = value;
+    }
+
+    #[inline(always)]
+    pub fn ram_write_u16(&mut self, phys: u32, value: u16) {
+        debug_assert!(phys <= RAM_END - 1);
+        tracing::trace!(
+            phys_addr = format!("{:08X}", phys),
+            value = format!("{:04X}", value),
+            "write_u16"
+        );
+        unsafe { write_be_u16_unchecked(self.ram.as_mut_ptr().add(phys as usize), value) };
+    }
+
+    #[inline(always)]
+    pub fn ram_write_u32(&mut self, phys: u32, value: u32) {
+        debug_assert!(phys <= RAM_END - 3);
+        tracing::trace!(
+            phys_addr = format!("{:08X}", phys),
+            value = format!("{:08X}", value),
+            "write_u32"
+        );
+        unsafe { write_be_u32_unchecked(self.ram.as_mut_ptr().add(phys as usize), value) };
+    }
+
+    #[inline(always)]
+    pub fn ram_write_u64(&mut self, phys: u32, value: u64) {
+        debug_assert!(phys <= RAM_END - 7);
+        unsafe { write_be_u64_unchecked(self.ram.as_mut_ptr().add(phys as usize), value) };
+    }
+}
+
+#[inline(always)]
+pub const fn virt_to_phys(addr: u32) -> u32 {
+    addr & 0x3FFFFFFF
+}
+
+#[inline(always)]
+unsafe fn read_be_u16_unchecked(ptr: *const u8) -> u16 {
+    u16::from_be(unsafe { std::ptr::read_unaligned(ptr.cast::<u16>()) })
+}
+
+#[inline(always)]
+unsafe fn read_be_u32_unchecked(ptr: *const u8) -> u32 {
+    u32::from_be(unsafe { std::ptr::read_unaligned(ptr.cast::<u32>()) })
+}
+
+#[inline(always)]
+unsafe fn read_be_u64_unchecked(ptr: *const u8) -> u64 {
+    u64::from_be(unsafe { std::ptr::read_unaligned(ptr.cast::<u64>()) })
+}
+
+#[inline(always)]
+unsafe fn write_be_u16_unchecked(ptr: *mut u8, value: u16) {
+    unsafe { std::ptr::write_unaligned(ptr.cast::<u16>(), value.to_be()) };
+}
+
+#[inline(always)]
+unsafe fn write_be_u32_unchecked(ptr: *mut u8, value: u32) {
+    unsafe { std::ptr::write_unaligned(ptr.cast::<u32>(), value.to_be()) };
+}
+
+#[inline(always)]
+unsafe fn write_be_u64_unchecked(ptr: *mut u8, value: u64) {
+    unsafe { std::ptr::write_unaligned(ptr.cast::<u64>(), value.to_be()) };
+}
+
+impl<const SYSTEM: SystemId> Mmio<SYSTEM> {
+    pub fn save_state(&self, w: &mut crate::savestate::StateWriter) {
+        w.bytes(&self.ram);
+        w.bytes(&self.mem2);
+        w.bytes(&self.efb);
+        w.bytes(&self.hwr);
+        w.bytes(&self.lcache);
+        w.bytes(&self.ipl);
+    }
+
+    pub fn load_state(
+        &mut self,
+        r: &mut crate::savestate::StateReader<'_>,
+    ) -> Result<(), crate::savestate::StateError> {
+        r.bytes_into(&mut self.ram)?;
+        r.bytes_into(&mut self.mem2)?;
+        r.bytes_into(&mut self.efb)?;
+        r.bytes_into(&mut self.hwr)?;
+        r.bytes_into(&mut self.lcache)?;
+        r.bytes_into(&mut self.ipl)?;
+
+        self.memory_write_generation = 0;
+        self.memory_page_generations.fill(0);
+
+        #[cfg(feature = "jit")]
+        {
+            self.pending_icbi.clear();
+            self.jit_dirty = 0;
+        }
+
+        Ok(())
+    }
+}

@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "targets": [
+    { "id": "windows-x64", "artifactKinds": [".exe", ".dll"], "graphicsApis": ["Direct3D 12 (Dolphin backend; Gecko wgpu selectable with WGPU_BACKEND=dx12)", "Vulkan (optional backend)"], "buildHost": "Windows 11 x64 with MSVC or an explicitly configured cross toolchain" },
+    { "id": "linux-x64", "artifactKinds": ["ELF executable", ".so"], "graphicsApis": ["Vulkan", "OpenGL/GLES where supported by the project"], "buildHost": "Linux x64 with its native development libraries" },
+    { "id": "web-wasm32-webgpu", "artifactKinds": [".js", ".wasm", "static web site"], "graphicsApis": ["WebGPU (wgpu BROWSER_WEBGPU backend)"], "buildHost": "Windows or Linux with Rust wasm target and wasm-pack; runtime is a secure-context WebGPU browser" },
+    { "id": "wii-powerpc", "artifactKinds": [".dol", ".elf", ".wad only with a separate title packager"], "buildHost": "devkitPPC/libogc PowerPC cross toolchain" }
+  ],
+  "formats": [
+    {
+      "family": "gamecube-wii-disc",
+      "extensions": [".gcm", ".iso", ".tgc", ".wbfs", ".ciso", ".gcz", ".wia", ".rvz", ".nfs"],
+      "operations": ["inspect", "verify", "extract", "convert-supported-disc-containers"],
+      "tools": ["Dolphin/DolphinTool", "decomp-toolkit (dtk)", "wiimms-iso-tools (gated)"],
+      "desktopOutputs": { "windows-x64": "Dolphin.exe or Gecko native executable loads authorized input", "linux-x64": "Dolphin or Gecko ELF loads authorized input" },
+      "webOutput": "Gecko WebGPU/WASM accepts locally selected RVZs and streams Wii-disc RVZs catalogued in the unified static site through bounded chunks. The RVZ remains runtime game data interpreted by Gecko; the PowerPC game is not recompiled into a standalone WASM module.",
+      "conversion": "Container conversion only where DolphinTool supports it; does not recompile game code or create a native executable from a disc image."
+    },
+    {
+      "family": "wii-title-and-homebrew",
+      "extensions": [".wad", ".dol", ".elf"],
+      "operations": ["WAD inspect/verify/extract with dtk or wadlib", "compile homebrew source to DOL/ELF with devkitPPC/libogc", "boot supported inputs in desktop emulator"],
+      "tools": ["decomp-toolkit", "wadlib", "wii-examples", "Dolphin", "Gecko"],
+      "consoleOutput": "PowerPC .dol/.elf from source; WAD creation requires a separately audited title-packing recipe and explicit authorized inputs.",
+      "webOutput": "Gecko WebGPU/WASM boots Wii RVZ game discs in the Wii core and accepts its existing .dol/.bin path. WAD/System Menu boot and game-code-to-WASM recompilation are unsupported."
+    },
+    {
+      "family": "wii-u",
+      "extensions": [".wud", ".wux", ".wua", ".rpx", ".rpl"],
+      "operations": ["WiiUDownloader provides a cross-platform Wii U title client; it is not a compiler, emulator or general format converter."],
+      "tools": ["WiiUDownloader (desktop app gated by generated title database/native UI dependencies)"],
+      "desktopOutputs": { "windows-x64": "WiiUDownloader source build only when its platform/dependencies and generated data are satisfied", "linux-x64": "WiiUDownloader GTK source build only when its platform/dependencies and generated data are satisfied" },
+      "webOutput": "No Wii U browser emulator/loader is present in these repositories.",
+      "conversion": "No WUD/WUX/WUA/RPX/RPL-to-EXE/DLL/WASM conversion is implemented."
+    },
+    {
+      "family": "other-nintendo-console-formats",
+      "extensions": [".nes", ".sfc", ".smc", ".n64", ".z64", ".gb", ".gbc", ".gba", ".nds", ".3ds", ".cia", ".nsp", ".xci"],
+      "operations": [],
+      "tools": [],
+      "desktopOutputs": {},
+      "webOutput": "No matching emulator/compiler is present in the audited source repositories.",
+      "conversion": "Unsupported until a licensed source project/toolchain and explicit format adapter are added."
+    }
+  ],
+  "outputRules": [
+    "A game image is data for an emulator; it is never relabeled or converted into a native .exe, .dll, Linux executable or WASM module.",
+    "Native executables and browser artifacts are built from source code, emulator projects or homebrew source, not from proprietary game binaries.",
+    "DLL/.so outputs require a project-defined library/plugin ABI; none of the audited console input formats defines that ABI.",
+    "Keep input images, WADs, keys, IPL/BIOS and title data operator-provided and out of distributable build artifacts."
+  ],
+  "graphicsPolicy": {
+    "windowsGecko": "Native wgpu renderer enumerates available backends and honors WGPU_BACKEND=dx12; default environment selection remains driver/platform dependent.",
+    "windowsDolphin": "Dolphin's Win32 CMake source includes the D3D12 video backend; the user selects D3D12 in the emulator graphics settings.",
+    "web": "Gecko browser crate pins wgpu::Backends::BROWSER_WEBGPU; WGPU_BACKEND cannot switch browser rendering to native D3D12.",
+    "qualification": "A successful compile confirms backend code is present; actual D3D12/WebGPU adapter creation and rendering require runtime qualification on the respective host/browser."
+  }
+}

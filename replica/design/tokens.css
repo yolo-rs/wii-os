@@ -1,0 +1,23 @@
+:root {
+  color-scheme: light;
+  --page: #f5f7fb;
+  --surface: #fff;
+  --surface-soft: #f8f9fc;
+  --ink: #21283a;
+  --muted: #687186;
+  --muted-strong: #596176;
+  --line: #e8ebf2;
+  --accent: #5968d9;
+  --accent-ink: #4957c5;
+  --accent-deep: #3948b5;
+  --accent-soft: #edf0ff;
+  --mint: #d8f4ec;
+  --green: #2a9a78;
+  --coral: #f9d9d1;
+  --violet: #e9e0ff;
+  --shadow-soft: 0 20px 60px rgb(47 57 103 / 7%);
+  --shadow-card: 0 8px 24px rgb(39 48 89 / 5%);
+  --radius-sm: 12px;
+  --radius-md: 18px;
+  --radius-lg: 26px;
+}

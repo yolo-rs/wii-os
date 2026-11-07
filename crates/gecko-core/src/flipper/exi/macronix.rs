@@ -1,0 +1,314 @@
+// IPL ROM / SRAM / RTC device (EXI channel 0, device 1)
+// Macronix device according to yagcd, TODO: update name
+// - Address 0x000000..0x1FFFFF: Mask ROM (2 MB)
+// - Address 0x800004..0x800043: SRAM (64 bytes; 0x800000..0x800003 is the RTC counter)
+// - Address 0x840000: RTC (seconds since 2000-01-01?)
+
+const IPL_START: u32 = 0x000000;
+const IPL_END: u32 = 0x1FFFFF;
+
+const SRAM_START: u32 = 0x800004;
+const SRAM_END: u32 = 0x800043;
+const SRAM_SIZE: usize = 64;
+
+const RTC_START: u32 = 0x840000;
+const RTC_END: u32 = 0x840004;
+
+const IPL_ROM_SIZE: usize = 0x20_0000;
+const FONT_SJIS_OFFSET: usize = 0x1A_FF00;
+const FONT_ANSI_OFFSET: usize = 0x1F_CF00;
+
+/// Build the licensed font-only ROM fallback used by Dolphin when no raw IPL
+/// dump is configured. Wii titles read these ranges through __OSReadROM on
+/// EXI channel 0/device 1; the assets are generated from Droid Sans and carry
+/// their Apache-2.0 notices in `assets/ipl-font-hle/font-licenses.txt`.
+pub fn wii_font_hle_rom() -> Vec<u8> {
+    const FONT_WESTERN: &[u8] = include_bytes!("../../../assets/ipl-font-hle/font_western.bin");
+    const FONT_JAPANESE: &[u8] = include_bytes!("../../../assets/ipl-font-hle/font_japanese.bin");
+
+    let mut rom = vec![0; IPL_ROM_SIZE];
+    rom[FONT_SJIS_OFFSET..FONT_SJIS_OFFSET + FONT_JAPANESE.len()].copy_from_slice(FONT_JAPANESE);
+    rom[FONT_ANSI_OFFSET..FONT_ANSI_OFFSET + FONT_WESTERN.len()].copy_from_slice(FONT_WESTERN);
+    rom
+}
+
+pub struct ExiMacronix {
+    rom: Vec<u8>,
+    sram: Sram,
+    sram_path: Option<std::path::PathBuf>,
+    sram_dirty: bool,
+    command: u32,
+    bytes_received: usize,
+    cursor: usize,
+}
+
+impl ExiMacronix {
+    pub const CHANNEL: usize = 0;
+    pub const DEVICE: usize = 1;
+
+    pub fn new(rom: Vec<u8>) -> Self {
+        Self {
+            rom,
+            sram: Sram::ntsc_default(),
+            sram_path: None,
+            sram_dirty: false,
+            command: 0,
+            bytes_received: 0,
+            cursor: 0,
+        }
+    }
+
+    /// Back the SRAM with a file: load it now if present and persist any
+    /// guest writes so console settings, clock bias and the memory card's
+    /// flash id survive across runs.
+    pub fn set_sram_path(&mut self, path: std::path::PathBuf) {
+        super::device::load_backing(&path, &mut self.sram.data, "SRAM");
+        self.sram_path = Some(path);
+    }
+
+    fn flush_sram(&self) {
+        if let Some(path) = &self.sram_path {
+            super::device::persist_backing(path, &self.sram.data, "SRAM");
+        }
+    }
+
+    fn address(&self) -> u32 {
+        (self.command >> 6) & 0x1FF_FFFF
+    }
+
+    fn is_write(&self) -> bool {
+        self.command & 0x8000_0000 != 0
+    }
+
+    fn rtc_seconds() -> u32 {
+        use std::time::{SystemTime, UNIX_EPOCH};
+        const GC_EPOCH_OFFSET: u64 = 946_684_800;
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| (d.as_secs() - GC_EPOCH_OFFSET) as u32)
+            .unwrap_or(0)
+    }
+}
+
+impl super::device::ExiDevice for ExiMacronix {
+    fn on_select(&mut self) {
+        self.command = 0;
+        self.bytes_received = 0;
+        self.cursor = 0;
+    }
+
+    fn transfer_byte(&mut self, byte: &mut u8) {
+        if self.bytes_received < 4 {
+            self.command = (self.command << 8) | (*byte as u32);
+            *byte = 0xFF;
+            self.bytes_received += 1;
+            return;
+        }
+
+        let addr = self.address();
+
+        match addr {
+            IPL_START..=IPL_END => {
+                if !self.is_write() {
+                    let offset = (addr as usize + self.cursor) % self.rom.len().max(1);
+                    *byte = self.rom[offset];
+                    tracing::debug!(
+                        addr = format!("{:06X}", addr),
+                        cursor = self.cursor,
+                        value = format!("{:02X}", byte),
+                        "IPL byte read"
+                    );
+                }
+            }
+            SRAM_START..=SRAM_END => {
+                let offset = ((addr - SRAM_START) as usize + self.cursor) % SRAM_SIZE;
+                if self.is_write() {
+                    self.sram.data[offset] = *byte;
+                    self.sram_dirty = true;
+                    tracing::debug!(
+                        addr = format!("{:06X}", addr),
+                        cursor = self.cursor,
+                        value = format!("{:02X}", byte),
+                        "SRAM byte write"
+                    );
+                } else {
+                    *byte = self.sram.data[offset];
+                    tracing::debug!(
+                        addr = format!("{:06X}", addr),
+                        cursor = self.cursor,
+                        value = format!("{:02X}", byte),
+                        "SRAM byte read"
+                    );
+                }
+            }
+            RTC_START..=RTC_END => {
+                if !self.is_write() {
+                    let rtc = Self::rtc_seconds().to_be_bytes();
+                    *byte = rtc[self.cursor % 4];
+                    tracing::debug!(
+                        addr = format!("{:06X}", addr),
+                        cursor = self.cursor,
+                        value = format!("{:02X}", byte),
+                        "RTC byte read"
+                    );
+                }
+            }
+            _ => {
+                if !self.is_write() {
+                    *byte = 0;
+                    tracing::debug!(addr = format!("{:06X}", addr), "Unknown address read");
+                }
+            }
+        }
+
+        self.cursor += 1;
+    }
+
+    fn dma_read(&mut self, buf: &mut [u8]) {
+        let addr = self.address();
+        match addr {
+            IPL_START..=IPL_END => {
+                let start = addr as usize;
+                for (i, b) in buf.iter_mut().enumerate() {
+                    *b = self.rom[start + i];
+                }
+                tracing::debug!(
+                    addr = format!("{:06X}", addr),
+                    size = buf.len(),
+                    data = format!("{:02X?}", &buf),
+                    "IPL DMA read"
+                );
+            }
+            SRAM_START..=SRAM_END => {
+                let base = (addr - SRAM_START) as usize;
+                for (i, b) in buf.iter_mut().enumerate() {
+                    *b = self.sram.data[(base + i) % SRAM_SIZE];
+                }
+                tracing::debug!(
+                    addr = format!("{:06X}", addr),
+                    size = buf.len(),
+                    data = format!("{:02X?}", &buf),
+                    "SRAM DMA read"
+                );
+            }
+            RTC_START..=RTC_END => {
+                let rtc = Self::rtc_seconds();
+                let rtc_bytes = rtc.to_be_bytes();
+                for (i, b) in buf.iter_mut().enumerate() {
+                    *b = rtc_bytes[i % 4];
+                }
+                tracing::debug!(
+                    addr = format!("{:06X}", addr),
+                    size = buf.len(),
+                    data = format!("{:02X?}", &buf),
+                    time = rtc,
+                    "RTC DMA read"
+                );
+            }
+            _ => {
+                buf.fill(0);
+            }
+        }
+    }
+
+    fn dma_write(&mut self, buf: &[u8]) {
+        let addr = self.address();
+        if addr >= SRAM_START && addr <= SRAM_END {
+            let base = (addr - SRAM_START) as usize;
+            for (i, b) in buf.iter().enumerate() {
+                self.sram.data[(base + i) % SRAM_SIZE] = *b;
+            }
+            self.sram_dirty = true;
+        }
+    }
+
+    fn on_deselect(&mut self) -> Option<u64> {
+        if self.sram_dirty {
+            self.flush_sram();
+            self.sram_dirty = false;
+        }
+
+        None
+    }
+
+    fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {
+        Some(self)
+    }
+
+    fn save_state(&mut self, w: &mut crate::savestate::StateWriter) {
+        w.pod(&self.sram.data);
+        w.bool(self.sram_dirty);
+        w.u32(self.command);
+        w.u64(self.bytes_received as u64);
+        w.u64(self.cursor as u64);
+    }
+
+    fn load_state(&mut self, r: &mut crate::savestate::StateReader<'_>) -> Result<(), crate::savestate::StateError> {
+        self.sram.data = r.pod()?;
+        self.sram_dirty = r.bool()?;
+        self.command = r.u32()?;
+        self.bytes_received = r.u64()? as usize;
+        self.cursor = r.u64()? as usize;
+
+        self.flush_sram();
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Sram {
+    pub data: [u8; SRAM_SIZE],
+}
+
+impl Sram {
+    /// Dumped from NTSC IPL
+    #[rustfmt::skip]
+    pub fn ntsc_default() -> Self {
+        let mut sram = Self {
+            data: [
+                0x01, 0x04, 0xFE, 0xFB,
+                0x00, 0x14, 0xFF, 0xE8,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x14,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+            ],
+        };
+
+        sram.fix_flash_id_checksums();
+
+        sram
+    }
+
+    pub fn empty() -> Self {
+        let mut sram = Self { data: [0; SRAM_SIZE] };
+
+        sram.fix_flash_id_checksums();
+
+        sram
+    }
+
+    fn fix_flash_id_checksums(&mut self) {
+        const FLASH_ID_BASE: usize = 0x14;
+        const FLASH_ID_LEN: usize = 12;
+        const FLASH_ID_CKSUM: usize = 0x3A;
+
+        for slot in 0..2 {
+            let base = FLASH_ID_BASE + slot * FLASH_ID_LEN;
+            let sum = self.data[base..base + FLASH_ID_LEN]
+                .iter()
+                .fold(0u8, |acc, &b| acc.wrapping_add(b));
+            self.data[FLASH_ID_CKSUM + slot] = sum ^ 0xFF;
+        }
+    }
+}

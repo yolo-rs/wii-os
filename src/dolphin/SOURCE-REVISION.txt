@@ -1,0 +1,6 @@
+Source: Wii OS local Dolphin source snapshot
+Commit: 8d2ad1a662472955497e5bb79d7b9ec6999e1f0d
+Working tree: clean at copy time
+Git metadata: intentionally excluded
+External sources: initialized pinned trees copied; uninitialized submodules remain absent
+Wii OS patch: CMake records this snapshot commit when Git metadata is absent

@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "status": "control-plane-prototype-implemented; game-netplay-bridges-pending",
+  "platforms": ["windows-x64", "linux-x64", "web-wasm32-webgpu"],
+  "services": [
+    {
+      "name": "wii-os-control-plane",
+      "domain": "lobby-presence-invites-chat",
+      "stack": ["Rust", "Tokio", "Axum", "HTTP", "WebSocket"],
+      "artifact": "wii-os-server",
+      "defaultBind": "127.0.0.1",
+      "defaultEnabled": false,
+      "transport": "websocket",
+      "webClient": true,
+      "nativeClients": true
+    },
+    {
+      "name": "dolphin-netplay",
+      "domain": "deterministic-emulator-netplay",
+      "stack": ["Dolphin Core NetPlay", "ENet", "SFML Network"],
+      "integration": "reuse-through-existing-Dolphin-interface-or-explicit-adapter",
+      "replaceTransport": false
+    },
+    {
+      "name": "wfc-server",
+      "domain": "legacy-Wii-DS-online-services",
+      "stack": ["Go", "existing WWFC protocols", "PostgreSQL", "gVisor"],
+      "integration": "keep-as-independent-optional-service",
+      "replaceTransport": false
+    },
+    {
+      "name": "browser-peer-transport",
+      "domain": "future-browser-game-data-channel",
+      "stack": ["WebRTC DataChannel", "Pion WebRTC signaling candidate"],
+      "status": "deferred",
+      "reason": "no-browser-compatible Dolphin NetPlay endpoint exists in the current inventory"
+    }
+  ],
+  "ports": {
+    "http": { "default": 8780, "configurable": true, "enabledByDefault": false },
+    "websocket": { "sharesHttpListener": true, "default": 8780, "path": "/v1/ws", "configurable": true, "enabledByDefault": false },
+    "dolphinNetplay": { "owner": "Dolphin configuration", "configurable": true },
+    "wfc": { "owner": "WWFC configuration", "configurable": true }
+  },
+  "discord": {
+    "activity": { "technology": "Discord Embedded App SDK", "client": "web", "optional": true },
+    "bot": { "technology": "Discord API bot integration", "runtime": "separate service or control-plane adapter", "optional": true },
+    "nativeSocial": { "technology": "Discord Social SDK C++", "client": "native", "optional": true },
+    "legacyGameSdk": { "required": false, "status": "do-not-assume-or-bundle" }
+  },
+  "input": {
+    "nativeDolphin": ["Dolphin SDL3", "XInput", "DirectInput", "existing Dolphin backends"],
+    "web": ["W3C Gamepad API"],
+    "windowsOptional": ["Microsoft GameInput"],
+    "policy": "additive-backend-only; preserve current Dolphin backends and profiles"
+  },
+  "contentPolicy": {
+    "catalogMayContain": ["user-local-path", "title-metadata", "user-computed-hash", "user-owned-artwork-reference"],
+    "bundleNintendoRomWadBiosOrNand": false,
+    "requireUserProvidedContent": true
+  }
+}

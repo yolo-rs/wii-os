@@ -1,0 +1,196 @@
+# GameCube DSP extension opcodes sub-decoder
+#
+# Extension opcodes are packed into the lower 8 bits (or 7 bits for group 0x3)
+# of arithmetic instructions (upper nibble >= 0x3).
+#
+# When the ext field is 7 bits wide (group 0x3), it is zero-extended to 8 bits
+# before lookup.
+
+subdecoder GcDspExt {
+    width = 8
+    bit_order = msb0
+}
+
+# Register name maps for extensions
+
+# $(0x18 + D): 3-bit D, used by 'L, 'LN
+map ext18_name(d) {
+    0 => "ax0.l"
+    1 => "ax1.l"
+    2 => "ax0.h"
+    3 => "ax1.h"
+    4 => "ac0.l"
+    5 => "ac1.l"
+    6 => "ac0.m"
+    7 => "ac1.m"
+    _ => "???"
+}
+
+# $(0x18 + D): 2-bit D subset, used by 'LS/'SL families and 'MV
+map ext18_2_name(d) {
+    0 => "ax0.l"
+    1 => "ax1.l"
+    2 => "ax0.h"
+    3 => "ax1.h"
+    _ => "???"
+}
+
+# $(0x1c + S): 2-bit S, used by 'MV, 'S, 'SN
+map ext1c_name(s) {
+    0 => "ac0.l"
+    1 => "ac1.l"
+    2 => "ac0.m"
+    3 => "ac1.m"
+    _ => "???"
+}
+
+# ax0 half for 'LD family: $(0x18 + D*2), 1-bit D
+map ext_ax0_name(d) {
+    0 => "ax0.l"
+    1 => "ax0.h"
+    _ => "???"
+}
+
+# ax1 half for 'LD family: $(0x19 + R*2), 1-bit R
+map ext_ax1_name(r) {
+    0 => "ax1.l"
+    1 => "ax1.h"
+    _ => "???"
+}
+
+# ===================================================================
+# Extension opcodes (bit[0]=0, available in BOTH 7-bit and 8-bit ext)
+# ===================================================================
+
+# 'NOP: 0000 00xx (no effect)
+ext_nop     [0:5]=000000 [6:7]=??
+            | .mnemonic = ""
+            | .operands = ""
+
+# 'DR: 0000 01rr
+ext_dr      [0:5]=000001 r:u8[6:7]
+            | .mnemonic = "'DR"
+            | .operands = " : $ar{r}"
+
+# 'IR: 0000 10rr
+ext_ir      [0:5]=000010 r:u8[6:7]
+            | .mnemonic = "'IR"
+            | .operands = " : $ar{r}"
+
+# 'NR: 0000 11rr
+ext_nr      [0:5]=000011 r:u8[6:7]
+            | .mnemonic = "'NR"
+            | .operands = " : $ar{r}"
+
+# 'MV: 0001 ddss
+ext_mv      [0:3]=0001 d:u8[4:5] s:u8[6:7]
+            | .mnemonic = "'MV"
+            | .operands = " : ${ext18_2_name(d)}, ${ext1c_name(s)}"
+
+# 'S: 001s s0dd
+ext_s       [0:2]=001 s:u8[3:4] [5]=0 d:u8[6:7]
+            | .mnemonic = "'S"
+            | .operands = " : @$ar{d}, ${ext1c_name(s)}"
+
+# 'SN: 001s s1dd
+ext_sn      [0:2]=001 s:u8[3:4] [5]=1 d:u8[6:7]
+            | .mnemonic = "'SN"
+            | .operands = " : @$ar{d}, ${ext1c_name(s)}"
+
+# 'L: 01dd d0ss
+ext_l       [0:1]=01 d:u8[2:4] [5]=0 s:u8[6:7]
+            | .mnemonic = "'L"
+            | .operands = " : ${ext18_name(d)}, @$ar{s}"
+
+# 'LN: 01dd d1ss
+ext_ln      [0:1]=01 d:u8[2:4] [5]=1 s:u8[6:7]
+            | .mnemonic = "'LN"
+            | .operands = " : ${ext18_name(d)}, @$ar{s}"
+
+# ===================================================================
+# Extension opcodes (bit[0]=1, ONLY in 8-bit ext, groups 0x4-0xF)
+# ===================================================================
+
+# 'LS: 10dd 000s
+ext_ls      [0:1]=10 d:u8[2:3] [4:6]=000 s:u8[7]
+            | .mnemonic = "'LS"
+            | .operands = " : ${ext18_2_name(d)}, $ac{s}.m"
+
+# 'SL: 10dd 001s
+ext_sl      [0:1]=10 d:u8[2:3] [4:6]=001 s:u8[7]
+            | .mnemonic = "'SL"
+            | .operands = " : $ac{s}.m, ${ext18_2_name(d)}"
+
+# 'LSN: 10dd 010s
+ext_lsn     [0:1]=10 d:u8[2:3] [4:6]=010 s:u8[7]
+            | .mnemonic = "'LSN"
+            | .operands = " : ${ext18_2_name(d)}, $ac{s}.m"
+
+# 'SLN: 10dd 011s
+ext_sln     [0:1]=10 d:u8[2:3] [4:6]=011 s:u8[7]
+            | .mnemonic = "'SLN"
+            | .operands = " : $ac{s}.m, ${ext18_2_name(d)}"
+
+# 'LSM: 10dd 100s
+ext_lsm     [0:1]=10 d:u8[2:3] [4:6]=100 s:u8[7]
+            | .mnemonic = "'LSM"
+            | .operands = " : ${ext18_2_name(d)}, $ac{s}.m"
+
+# 'SLM: 10dd 101s
+ext_slm     [0:1]=10 d:u8[2:3] [4:6]=101 s:u8[7]
+            | .mnemonic = "'SLM"
+            | .operands = " : $ac{s}.m, ${ext18_2_name(d)}"
+
+# 'LSNM: 10dd 110s
+ext_lsnm    [0:1]=10 d:u8[2:3] [4:6]=110 s:u8[7]
+            | .mnemonic = "'LSNM"
+            | .operands = " : ${ext18_2_name(d)}, $ac{s}.m"
+
+# 'SLNM: 10dd 111s
+ext_slnm    [0:1]=10 d:u8[2:3] [4:6]=111 s:u8[7]
+            | .mnemonic = "'SLNM"
+            | .operands = " : $ac{s}.m, ${ext18_2_name(d)}"
+
+# --- 'LD family: 11dr XXss where ss!=3 ---
+
+# 'LD: 11dr 00ss (s!=3)
+ext_ld_00   [0:1]=11 d:u8[2] r:u8[3] [4:5]=00 s:u8[6:7]
+            | .mnemonic = "'LD"
+            | .operands = " : ${ext_ax0_name(d)}, ${ext_ax1_name(r)}, @$ar{s}"
+
+# 'LDN: 11dr 01ss (s!=3)
+ext_ldn_01  [0:1]=11 d:u8[2] r:u8[3] [4:5]=01 s:u8[6:7]
+            | .mnemonic = "'LDN"
+            | .operands = " : ${ext_ax0_name(d)}, ${ext_ax1_name(r)}, @$ar{s}"
+
+# 'LDM: 11dr 10ss (s!=3)
+ext_ldm_10  [0:1]=11 d:u8[2] r:u8[3] [4:5]=10 s:u8[6:7]
+            | .mnemonic = "'LDM"
+            | .operands = " : ${ext_ax0_name(d)}, ${ext_ax1_name(r)}, @$ar{s}"
+
+# 'LDNM: 11dr 11ss (s!=3)
+ext_ldnm_11 [0:1]=11 d:u8[2] r:u8[3] [4:5]=11 s:u8[6:7]
+            | .mnemonic = "'LDNM"
+            | .operands = " : ${ext_ax0_name(d)}, ${ext_ax1_name(r)}, @$ar{s}"
+
+# --- 'LDAX family: 11sr XX11 (ss=3 case from above) ---
+
+# 'LDAX: 11sr 0011
+ext_ldax    [0:1]=11 s:u8[2] r:u8[3] [4:5]=00 [6:7]=11
+            | .mnemonic = "'LDAX"
+            | .operands = " : $ax{r}, @$ar{s}"
+
+# 'LDAXN: 11sr 0111
+ext_ldaxn   [0:1]=11 s:u8[2] r:u8[3] [4:5]=01 [6:7]=11
+            | .mnemonic = "'LDAXN"
+            | .operands = " : $ax{r}, @$ar{s}"
+
+# 'LDAXM: 11sr 1011
+ext_ldaxm   [0:1]=11 s:u8[2] r:u8[3] [4:5]=10 [6:7]=11
+            | .mnemonic = "'LDAXM"
+            | .operands = " : $ax{r}, @$ar{s}"
+
+# 'LDAXNM: 11sr 1111
+ext_ldaxnm  [0:1]=11 s:u8[2] r:u8[3] [4:5]=11 [6:7]=11
+            | .mnemonic = "'LDAXNM"
+            | .operands = " : $ax{r}, @$ar{s}"

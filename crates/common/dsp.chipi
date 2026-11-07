@@ -1,0 +1,731 @@
+# Nintendo GameCube DSP
+# 16-bit opcodes, MSB0 bit ordering, variable length (1 or 2 words)
+#
+# Arithmetic instructions (upper nibble >= 0x3) pack an extension opcode
+# in the lower 8 bits (or lower 7 bits for opcode group 0x3).
+# The ext/ext7 field should be decoded separately with the GcDspExt decoder.
+
+include "dsp_ext.chipi"
+
+decoder GcDsp {
+    width = 16
+    max_units = 2
+    bit_order = msb0
+}
+
+# -------------------------------------------------------------------
+# Custom types
+# -------------------------------------------------------------------
+
+type reg5 = u8
+type simm8 = i16 { sign_extend(8) }
+
+# Register name maps for disassembly
+map reg5_name(r) {
+    0  => "ar0"
+    1  => "ar1"
+    2  => "ar2"
+    3  => "ar3"
+    4  => "ix0"
+    5  => "ix1"
+    6  => "ix2"
+    7  => "ix3"
+    8  => "wr0"
+    9  => "wr1"
+    10 => "wr2"
+    11 => "wr3"
+    12 => "st0"
+    13 => "st1"
+    14 => "st2"
+    15 => "st3"
+    16 => "ac0.h"
+    17 => "ac1.h"
+    18 => "cr"
+    19 => "sr"
+    20 => "prod.l"
+    21 => "prod.m1"
+    22 => "prod.h"
+    23 => "prod.m2"
+    24 => "ax0.l"
+    25 => "ax1.l"
+    26 => "ax0.h"
+    27 => "ax1.h"
+    28 => "ac0.l"
+    29 => "ac1.l"
+    30 => "ac0.m"
+    31 => "ac1.m"
+    _  => "???"
+}
+
+map acreg3_name(r) {
+    0 => "ax0.l"
+    1 => "ax1.l"
+    2 => "ax0.h"
+    3 => "ax1.h"
+    4 => "ac0.l"
+    5 => "ac1.l"
+    6 => "ac0.m"
+    7 => "ac1.m"
+    _ => "???"
+}
+
+map acreg2_name(r) {
+    0 => "ac0.l"
+    1 => "ac1.l"
+    2 => "ac0.m"
+    3 => "ac1.m"
+    _ => "???"
+}
+
+map reg3_name(r) {
+    0 => "ar0"
+    1 => "ar1"
+    2 => "ar2"
+    3 => "ar3"
+    4 => "ix0"
+    5 => "ix1"
+    6 => "ix2"
+    7 => "ix3"
+    _ => "???"
+}
+
+map cc_name(c) {
+    0  => "GE"
+    1  => "L"
+    2  => "G"
+    3  => "LE"
+    4  => "NZ"
+    5  => "Z"
+    6  => "NC"
+    7  => "C"
+    8  => "x8"
+    9  => "x9"
+    10 => "xA"
+    11 => "xB"
+    12 => "LNZ"
+    13 => "LZ"
+    14 => "O"
+    15 => ""
+    _  => "?"
+}
+
+map ax2_name(r) {
+    0 => "ax0.l"
+    1 => "ax1.l"
+    2 => "ax0.h"
+    3 => "ax1.h"
+    _ => "???"
+}
+
+# ===================================================================
+#  REGULAR INSTRUCTIONS (upper byte 0x00 - 0x2F)
+# ===================================================================
+
+# 0000 0000 0000 0000 - NOP
+nop         [0:15]=0000000000000000
+            | "NOP"
+
+# 0000 0000 0000 01dd - DAR $arD
+dar         [0:13]=00000000000001 d:u8[14:15]
+            | "DAR $ar{d}"
+
+# 0000 0000 0000 10dd - IAR $arD
+iar         [0:13]=00000000000010 d:u8[14:15]
+            | "IAR $ar{d}"
+
+# 0000 0000 0000 11dd - SUBARN $arD
+subarn      [0:13]=00000000000011 d:u8[14:15]
+            | "SUBARN $ar{d}"
+
+# 0000 0000 0001 ssdd - ADDARN $arD, $ixS
+addarn      [0:11]=000000000001 s:u8[12:13] d:u8[14:15]
+            | "ADDARN $ar{d}, $ix{s}"
+
+# 0000 0000 0010 0001 - HALT
+halt        [0:15]=0000000000100001
+            | "HALT"
+
+# 0000 0000 010r rrrr - LOOP $reg
+loop_reg    [0:10]=00000000010 reg:reg5[11:15]
+            | "LOOP ${reg5_name(reg)}"
+
+# 0000 0000 011r rrrr aaaa aaaa aaaa aaaa - BLOOP $reg, addr
+bloop       [0:10]=00000000011 reg:reg5[11:15] addr:u16[16:31]
+            | "BLOOP ${reg5_name(reg)}, {addr:#06x}"
+
+# 0000 0000 100d dddd iiii iiii iiii iiii - LRI $reg, #imm16
+lri         [0:10]=00000000100 rd:reg5[11:15] imm:u16[16:31]
+            | "LRI ${reg5_name(rd)}, #{imm:#06x}"
+
+# 0000 0000 110d dddd mmmm mmmm mmmm mmmm - LR $reg, @addr
+lr          [0:10]=00000000110 rd:reg5[11:15] addr:u16[16:31]
+            | "LR ${reg5_name(rd)}, @{addr:#06x}"
+
+# 0000 0000 111s ssss mmmm mmmm mmmm mmmm - SR @addr, $reg
+sr          [0:10]=00000000111 rs:reg5[11:15] addr:u16[16:31]
+            | "SR @{addr:#06x}, ${reg5_name(rs)}"
+
+# 0000 0010 0111 cccc - IFcc
+ifcc        [0:11]=000000100111 cond:u8[12:15]
+            | cond == 15 : "IF"
+            | "IF{cc_name(cond)}"
+
+# 0000 0010 1001 cccc aaaa aaaa aaaa aaaa - Jcc / JMP
+jcc         [0:11]=000000101001 cond:u8[12:15] addr:u16[16:31]
+            | cond == 15 : "JMP {addr:#06x}"
+            | "J{cc_name(cond)} {addr:#06x}"
+
+# 0000 0010 1011 cccc aaaa aaaa aaaa aaaa - CALLcc / CALL
+callcc      [0:11]=000000101011 cond:u8[12:15] addr:u16[16:31]
+            | cond == 15 : "CALL {addr:#06x}"
+            | "CALL{cc_name(cond)} {addr:#06x}"
+
+# 0000 0010 1101 cccc - RETcc / RET
+retcc       [0:11]=000000101101 cond:u8[12:15]
+            | cond == 15 : "RET"
+            | "RET{cc_name(cond)}"
+
+# 0000 0010 1111 cccc - RTIcc / RTI
+rticc       [0:11]=000000101111 cond:u8[12:15]
+            | cond == 15 : "RTI"
+            | "RTI{cc_name(cond)}"
+
+# -------------------------------------------------------------------
+# 16-bit ALU with 16-bit immediate (0000 001d XXXX 0000 imm16)
+# MSB0 [0:6]=0000001, d at [7], sub-op at [8:15], imm at [16:31]
+# -------------------------------------------------------------------
+
+# ADDI $acD.m, #imm16
+addi        [0:6]=0000001 d:u8[7] [8:15]=00000000 imm:u16[16:31]
+            | "ADDI $ac{d}.m, #{imm:#06x}"
+
+# XORI $acD.m, #imm16
+xori        [0:6]=0000001 d:u8[7] [8:15]=00100000 imm:u16[16:31]
+            | "XORI $ac{d}.m, #{imm:#06x}"
+
+# ANDI $acD.m, #imm16
+andi        [0:6]=0000001 d:u8[7] [8:15]=01000000 imm:u16[16:31]
+            | "ANDI $ac{d}.m, #{imm:#06x}"
+
+# ORI $acD.m, #imm16
+ori         [0:6]=0000001 d:u8[7] [8:15]=01100000 imm:u16[16:31]
+            | "ORI $ac{d}.m, #{imm:#06x}"
+
+# CMPI $acD, #imm16
+cmpi        [0:6]=0000001 d:u8[7] [8:15]=10000000 imm:u16[16:31]
+            | "CMPI $ac{d}, #{imm:#06x}"
+
+# ANDF $acD.m, #imm16
+andf        [0:6]=0000001 d:u8[7] [8:15]=10100000 imm:u16[16:31]
+            | "ANDF $ac{d}.m, #{imm:#06x}"
+
+# ANDCF $acD.m, #imm16
+andcf       [0:6]=0000001 d:u8[7] [8:15]=11000000 imm:u16[16:31]
+            | "ANDCF $ac{d}.m, #{imm:#06x}"
+
+# -------------------------------------------------------------------
+# Instruction-space indirect loads (0000 001d 0001 XXss)
+# -------------------------------------------------------------------
+
+# ILRR $acD.m, @$arS
+ilrr        [0:6]=0000001 d:u8[7] [8:13]=000100 s:u8[14:15]
+            | "ILRR $ac{d}.m, @$ar{s}"
+
+# ILRRD $acD.m, @$arS
+ilrrd       [0:6]=0000001 d:u8[7] [8:13]=000101 s:u8[14:15]
+            | "ILRRD $ac{d}.m, @$ar{s}"
+
+# ILRRI $acD.m, @$arS
+ilrri       [0:6]=0000001 d:u8[7] [8:13]=000110 s:u8[14:15]
+            | "ILRRI $ac{d}.m, @$ar{s}"
+
+# ILRRN $acD.m, @$arS
+ilrrn       [0:6]=0000001 d:u8[7] [8:13]=000111 s:u8[14:15]
+            | "ILRRN $ac{d}.m, @$ar{s}"
+
+# -------------------------------------------------------------------
+# Special shift instructions
+# -------------------------------------------------------------------
+
+# LSRN - 0000 0010 1100 1010
+lsrn        [0:15]=0000001011001010
+            | "LSRN"
+
+# ASRN - 0000 0010 1100 1011
+asrn        [0:15]=0000001011001011
+            | "ASRN"
+
+# -------------------------------------------------------------------
+# Short-immediate instructions
+# -------------------------------------------------------------------
+
+# ADDIS $acD, #simm8 - 0000 010d iiii iiii
+addis       [0:6]=0000010 d:u8[7] imm:simm8[8:15]
+            | "ADDIS $ac{d}, #{imm}"
+
+# CMPIS $acD, #simm8 - 0000 011d iiii iiii
+cmpis       [0:6]=0000011 d:u8[7] imm:simm8[8:15]
+            | "CMPIS $ac{d}, #{imm}"
+
+# LRIS $reg, #simm8 - 0000 1ddd iiii iiii
+lris        [0:4]=00001 reg:u8[5:7] imm:simm8[8:15]
+            | "LRIS ${acreg3_name(reg)}, #{imm}"
+
+# -------------------------------------------------------------------
+# Loop instructions
+# -------------------------------------------------------------------
+
+# LOOPI #imm8 - 0001 0000 iiii iiii
+loopi       [0:7]=00010000 imm:u8[8:15]
+            | "LOOPI #{imm}"
+
+# BLOOPI #imm8, addr - 0001 0001 iiii iiii aaaa aaaa aaaa aaaa
+bloopi      [0:7]=00010001 imm:u8[8:15] addr:u16[16:31]
+            | "BLOOPI #{imm}, {addr:#06x}"
+
+# -------------------------------------------------------------------
+# Status register bit manipulation
+# -------------------------------------------------------------------
+
+# SBCLR #bit - 0001 0010 0000 0iii
+sbclr       [0:12]=0001001000000 bit:u8[13:15]
+            | "SBCLR #{bit}"
+
+# SBSET #bit - 0001 0011 0000 0iii
+sbset       [0:12]=0001001100000 bit:u8[13:15]
+            | "SBSET #{bit}"
+
+# -------------------------------------------------------------------
+# Accumulator shift instructions
+# -------------------------------------------------------------------
+
+# LSL $acR, #n - 0001 010r 00nn nnnn
+lsl         [0:6]=0001010 r:u8[7] [8:9]=00 n:u8[10:15]
+            | "LSL $ac{r}, #{n}"
+
+# LSR $acR, #n - 0001 010r 01nn nnnn
+lsr         [0:6]=0001010 r:u8[7] [8:9]=01 n:u8[10:15]
+            | "LSR $ac{r}, #{n}"
+
+# ASL $acR, #n - 0001 010r 10nn nnnn
+asl         [0:6]=0001010 r:u8[7] [8:9]=10 n:u8[10:15]
+            | "ASL $ac{r}, #{n}"
+
+# ASR $acR, #n - 0001 010r 11nn nnnn
+asr         [0:6]=0001010 r:u8[7] [8:9]=11 n:u8[10:15]
+            | "ASR $ac{r}, #{n}"
+
+# -------------------------------------------------------------------
+# SI @mem, #imm16 - 0001 0110 mmmm mmmm iiii iiii iiii iiii
+# -------------------------------------------------------------------
+si          [0:7]=00010110 mem:u16[8:15] imm:u16[16:31]
+            | "SI @{0xff00 + mem:#06x}, #{imm:#06x}"
+
+# -------------------------------------------------------------------
+# Register indirect jumps/calls
+# -------------------------------------------------------------------
+
+# JRcc $reg - 0001 0111 rrr0 cccc
+jrcc        [0:7]=00010111 reg:u8[8:10] [11]=0 cond:u8[12:15]
+            | cond == 15 : "JMPR ${reg3_name(reg)}"
+            | "JR{cc_name(cond)} ${reg3_name(reg)}"
+
+# CALLRcc $reg - 0001 0111 rrr1 cccc
+callrcc     [0:7]=00010111 reg:u8[8:10] [11]=1 cond:u8[12:15]
+            | cond == 15 : "CALLR ${reg3_name(reg)}"
+            | "CALLR{cc_name(cond)} ${reg3_name(reg)}"
+
+# -------------------------------------------------------------------
+# Register indirect load/store
+# Layout: 0001 100M Mssd dddd  (LRR variants)
+#         0001 101M Mdds ssss  (SRR variants)
+# -------------------------------------------------------------------
+
+# LRR $dst, @$arS
+lrr         [0:6]=0001100 [7:8]=00 s:u8[9:10] d:reg5[11:15]
+            | "LRR ${reg5_name(d)}, @$ar{s}"
+
+# LRRD $dst, @$arS
+lrrd        [0:6]=0001100 [7:8]=01 s:u8[9:10] d:reg5[11:15]
+            | "LRRD ${reg5_name(d)}, @$ar{s}"
+
+# LRRI $dst, @$arS
+lrri        [0:6]=0001100 [7:8]=10 s:u8[9:10] d:reg5[11:15]
+            | "LRRI ${reg5_name(d)}, @$ar{s}"
+
+# LRRN $dst, @$arS
+lrrn        [0:6]=0001100 [7:8]=11 s:u8[9:10] d:reg5[11:15]
+            | "LRRN ${reg5_name(d)}, @$ar{s}"
+
+# SRR @$arD, $src
+srr         [0:6]=0001101 [7:8]=00 d:u8[9:10] s:reg5[11:15]
+            | "SRR @$ar{d}, ${reg5_name(s)}"
+
+# SRRD @$arD, $src
+srrd        [0:6]=0001101 [7:8]=01 d:u8[9:10] s:reg5[11:15]
+            | "SRRD @$ar{d}, ${reg5_name(s)}"
+
+# SRRI @$arD, $src
+srri        [0:6]=0001101 [7:8]=10 d:u8[9:10] s:reg5[11:15]
+            | "SRRI @$ar{d}, ${reg5_name(s)}"
+
+# SRRN @$arD, $src
+srrn        [0:6]=0001101 [7:8]=11 d:u8[9:10] s:reg5[11:15]
+            | "SRRN @$ar{d}, ${reg5_name(s)}"
+
+# -------------------------------------------------------------------
+# MRR $dst, $src - 0001 11dd ddds ssss
+# -------------------------------------------------------------------
+mrr         [0:5]=000111 dst:reg5[6:10] src:reg5[11:15]
+            | "MRR ${reg5_name(dst)}, ${reg5_name(src)}"
+
+# -------------------------------------------------------------------
+# Short address load/store via CR
+# -------------------------------------------------------------------
+
+# LRS $reg, @M - 0010 0ddd mmmm mmmm
+lrs         [0:4]=00100 reg:u8[5:7] mem:u8[8:15]
+            | "LRS ${acreg3_name(reg)}, @0x{mem:02x}"
+
+# SRSH @M, $acS.h - 0010 100s mmmm mmmm
+srsh        [0:6]=0010100 s:u8[7] mem:u8[8:15]
+            | "SRSH @0x{mem:02x}, $ac{s}.h"
+
+# SRS @M, $reg - 0010 11ss mmmm mmmm
+srs         [0:5]=001011 reg:u8[6:7] mem:u8[8:15]
+            | "SRS @0x{mem:02x}, ${acreg2_name(reg)}"
+
+
+# ===================================================================
+#  ARITHMETIC INSTRUCTIONS (upper nibble >= 0x3)
+#
+#  These pack an extension opcode in the lower bits:
+#   - Group 0x3 (0011xxxx): 9-bit arith opcode [0:8], 7-bit ext [9:15]
+#   - Groups 0x4-0xF:       8-bit arith opcode [0:7], 8-bit ext [8:15]
+# ===================================================================
+
+# -------------------------------------------------------------------
+# Group 0x3 - Logical operations (9-bit opcode, 7-bit ext)
+# -------------------------------------------------------------------
+
+# XORR $acD.m, $axS.h - 0011 00sd 0
+xorr        [0:3]=0011 [4:5]=00 s:u8[6] d:u8[7] [8]=0 ext:GcDspExt[9:15]
+            | "XORR{ext.mnemonic} $ac{d}.m, $ax{s}.h{ext.operands}"
+
+# ANDR $acD.m, $axS.h - 0011 01sd 0
+andr        [0:3]=0011 [4:5]=01 s:u8[6] d:u8[7] [8]=0 ext:GcDspExt[9:15]
+            | "ANDR{ext.mnemonic} $ac{d}.m, $ax{s}.h{ext.operands}"
+
+# ORR $acD.m, $axS.h - 0011 10sd 0
+orr         [0:3]=0011 [4:5]=10 s:u8[6] d:u8[7] [8]=0 ext:GcDspExt[9:15]
+            | "ORR{ext.mnemonic} $ac{d}.m, $ax{s}.h{ext.operands}"
+
+# ANDC $acD.m, $ac(1-D).m - 0011 110d 0
+andc        [0:3]=0011 [4:6]=110 d:u8[7] [8]=0 ext:GcDspExt[9:15]
+            | "ANDC{ext.mnemonic} $ac{d}.m, $ac{1 - d}.m{ext.operands}"
+
+# ORC $acD.m, $ac(1-D).m - 0011 111d 0
+orc         [0:3]=0011 [4:6]=111 d:u8[7] [8]=0 ext:GcDspExt[9:15]
+            | "ORC{ext.mnemonic} $ac{d}.m, $ac{1 - d}.m{ext.operands}"
+
+# XORC $acD.m, $ac(1-D).m - 0011 000d 1
+xorc        [0:3]=0011 [4:6]=000 d:u8[7] [8]=1 ext:GcDspExt[9:15]
+            | "XORC{ext.mnemonic} $ac{d}.m, $ac{1 - d}.m{ext.operands}"
+
+# NOT $acD.m - 0011 001d 1
+not_ac      [0:3]=0011 [4:6]=001 d:u8[7] [8]=1 ext:GcDspExt[9:15]
+            | "NOT{ext.mnemonic} $ac{d}.m{ext.operands}"
+
+# LSRNRX $acD, $axS.h - 0011 01sd 1
+lsrnrx      [0:3]=0011 [4:5]=01 s:u8[6] d:u8[7] [8]=1 ext:GcDspExt[9:15]
+            | "LSRNRX{ext.mnemonic} $ac{d}, $ax{s}.h{ext.operands}"
+
+# ASRNRX $acD, $axS.h - 0011 10sd 1
+asrnrx      [0:3]=0011 [4:5]=10 s:u8[6] d:u8[7] [8]=1 ext:GcDspExt[9:15]
+            | "ASRNRX{ext.mnemonic} $ac{d}, $ax{s}.h{ext.operands}"
+
+# LSRNR $acD, $ac(1-D).m - 0011 110d 1
+lsrnr       [0:3]=0011 [4:6]=110 d:u8[7] [8]=1 ext:GcDspExt[9:15]
+            | "LSRNR{ext.mnemonic} $ac{d}, $ac{1 - d}.m{ext.operands}"
+
+# ASRNR $acD, $ac(1-D).m - 0011 111d 1
+asrnr       [0:3]=0011 [4:6]=111 d:u8[7] [8]=1 ext:GcDspExt[9:15]
+            | "ASRNR{ext.mnemonic} $ac{d}, $ac{1 - d}.m{ext.operands}"
+
+# -------------------------------------------------------------------
+# Group 0x4 - Add
+# -------------------------------------------------------------------
+
+# ADDR $acD, $(ss) - 0100 0ssd
+addr        [0:3]=0100 [4]=0 ss:u8[5:6] d:u8[7] ext:GcDspExt[8:15]
+            | "ADDR{ext.mnemonic} $ac{d}, ${ax2_name(ss)}{ext.operands}"
+
+# ADDAX $acD, $axS - 0100 10sd
+addax       [0:3]=0100 [4:5]=10 s:u8[6] d:u8[7] ext:GcDspExt[8:15]
+            | "ADDAX{ext.mnemonic} $ac{d}, $ax{s}{ext.operands}"
+
+# ADD $acD, $ac(1-D) - 0100 110d
+add         [0:3]=0100 [4:6]=110 d:u8[7] ext:GcDspExt[8:15]
+            | "ADD{ext.mnemonic} $ac{d}, $ac{1 - d}{ext.operands}"
+
+# ADDP $acD, $prod - 0100 111d
+addp        [0:3]=0100 [4:6]=111 d:u8[7] ext:GcDspExt[8:15]
+            | "ADDP{ext.mnemonic} $ac{d}, $prod{ext.operands}"
+
+# -------------------------------------------------------------------
+# Group 0x5 - Subtract
+# -------------------------------------------------------------------
+
+# SUBR $acD, $(ss) - 0101 0ssd
+subr        [0:3]=0101 [4]=0 ss:u8[5:6] d:u8[7] ext:GcDspExt[8:15]
+            | "SUBR{ext.mnemonic} $ac{d}, ${ax2_name(ss)}{ext.operands}"
+
+# SUBAX $acD, $axS - 0101 10sd
+subax       [0:3]=0101 [4:5]=10 s:u8[6] d:u8[7] ext:GcDspExt[8:15]
+            | "SUBAX{ext.mnemonic} $ac{d}, $ax{s}{ext.operands}"
+
+# SUB $acD, $ac(1-D) - 0101 110d
+sub         [0:3]=0101 [4:6]=110 d:u8[7] ext:GcDspExt[8:15]
+            | "SUB{ext.mnemonic} $ac{d}, $ac{1 - d}{ext.operands}"
+
+# SUBP $acD, $prod - 0101 111d
+subp        [0:3]=0101 [4:6]=111 d:u8[7] ext:GcDspExt[8:15]
+            | "SUBP{ext.mnemonic} $ac{d}, $prod{ext.operands}"
+
+# -------------------------------------------------------------------
+# Group 0x6 - Move
+# -------------------------------------------------------------------
+
+# MOVR $acD, $(ss) - 0110 0ssd
+movr        [0:3]=0110 [4]=0 ss:u8[5:6] d:u8[7] ext:GcDspExt[8:15]
+            | "MOVR{ext.mnemonic} $ac{d}, ${ax2_name(ss)}{ext.operands}"
+
+# MOVAX $acD, $axS - 0110 10sd
+movax       [0:3]=0110 [4:5]=10 s:u8[6] d:u8[7] ext:GcDspExt[8:15]
+            | "MOVAX{ext.mnemonic} $ac{d}, $ax{s}{ext.operands}"
+
+# MOV $acD, $ac(1-D) - 0110 110d
+mov         [0:3]=0110 [4:6]=110 d:u8[7] ext:GcDspExt[8:15]
+            | "MOV{ext.mnemonic} $ac{d}, $ac{1 - d}{ext.operands}"
+
+# MOVP $acD, $prod - 0110 111d
+movp        [0:3]=0110 [4:6]=111 d:u8[7] ext:GcDspExt[8:15]
+            | "MOVP{ext.mnemonic} $ac{d}, $prod{ext.operands}"
+
+# -------------------------------------------------------------------
+# Group 0x7 - Misc arithmetic
+# -------------------------------------------------------------------
+
+# ADDAXL $acD, $axS.l - 0111 00sd
+addaxl      [0:3]=0111 [4:5]=00 s:u8[6] d:u8[7] ext:GcDspExt[8:15]
+            | "ADDAXL{ext.mnemonic} $ac{d}, $ax{s}.l{ext.operands}"
+
+# INCM $acD - 0111 010d
+incm        [0:3]=0111 [4:6]=010 d:u8[7] ext:GcDspExt[8:15]
+            | "INCM{ext.mnemonic} $ac{d}{ext.operands}"
+
+# INC $acD - 0111 011d
+inc         [0:3]=0111 [4:6]=011 d:u8[7] ext:GcDspExt[8:15]
+            | "INC{ext.mnemonic} $ac{d}{ext.operands}"
+
+# DECM $acD - 0111 100d
+decm        [0:3]=0111 [4:6]=100 d:u8[7] ext:GcDspExt[8:15]
+            | "DECM{ext.mnemonic} $ac{d}{ext.operands}"
+
+# DEC $acD - 0111 101d
+dec         [0:3]=0111 [4:6]=101 d:u8[7] ext:GcDspExt[8:15]
+            | "DEC{ext.mnemonic} $ac{d}{ext.operands}"
+
+# NEG $acD - 0111 110d
+neg         [0:3]=0111 [4:6]=110 d:u8[7] ext:GcDspExt[8:15]
+            | "NEG{ext.mnemonic} $ac{d}{ext.operands}"
+
+# MOVNP $acD - 0111 111d
+movnp       [0:3]=0111 [4:6]=111 d:u8[7] ext:GcDspExt[8:15]
+            | "MOVNP{ext.mnemonic} $ac{d}{ext.operands}"
+
+# -------------------------------------------------------------------
+# Group 0x8 - NX, CLR, CMP, status flags
+# -------------------------------------------------------------------
+
+# NX - 1000 x000 (bit [4] is don't-care)
+nx_0        [0:3]=1000 [4]=0 [5:7]=000 ext:GcDspExt[8:15]
+            | "NX{ext.mnemonic}{ext.operands}"
+nx_1        [0:3]=1000 [4]=1 [5:7]=000 ext:GcDspExt[8:15]
+            | "NX{ext.mnemonic}{ext.operands}"
+
+# CLR $acR - 1000 r001
+clr         [0:3]=1000 r:u8[4] [5:7]=001 ext:GcDspExt[8:15]
+            | "CLR{ext.mnemonic} $ac{r}{ext.operands}"
+
+# CMP - 1000 0010
+cmp         [0:7]=10000010 ext:GcDspExt[8:15]
+            | "CMP{ext.mnemonic}{ext.operands}"
+
+# MULAXH - 1000 0011
+mulaxh      [0:7]=10000011 ext:GcDspExt[8:15]
+            | "MULAXH{ext.mnemonic}{ext.operands}"
+
+# CLRP - 1000 0100
+clrp        [0:7]=10000100 ext:GcDspExt[8:15]
+            | "CLRP{ext.mnemonic}{ext.operands}"
+
+# TSTPROD - 1000 0101
+tstprod     [0:7]=10000101 ext:GcDspExt[8:15]
+            | "TSTPROD{ext.mnemonic}{ext.operands}"
+
+# TSTAXH $axR.h - 1000 011r
+tstaxh      [0:3]=1000 [4:6]=011 r:u8[7] ext:GcDspExt[8:15]
+            | "TSTAXH{ext.mnemonic} $ax{r}.h{ext.operands}"
+
+# M2 - 1000 1010
+m2          [0:7]=10001010 ext:GcDspExt[8:15]
+            | "M2{ext.mnemonic}{ext.operands}"
+
+# M0 - 1000 1011
+m0          [0:7]=10001011 ext:GcDspExt[8:15]
+            | "M0{ext.mnemonic}{ext.operands}"
+
+# CLR15 - 1000 1100
+clr15       [0:7]=10001100 ext:GcDspExt[8:15]
+            | "CLR15{ext.mnemonic}{ext.operands}"
+
+# SET15 - 1000 1101
+set15       [0:7]=10001101 ext:GcDspExt[8:15]
+            | "SET15{ext.mnemonic}{ext.operands}"
+
+# SET16 - 1000 1110
+set16       [0:7]=10001110 ext:GcDspExt[8:15]
+            | "SET16{ext.mnemonic}{ext.operands}"
+
+# SET40 - 1000 1111
+set40       [0:7]=10001111 ext:GcDspExt[8:15]
+            | "SET40{ext.mnemonic}{ext.operands}"
+
+# -------------------------------------------------------------------
+# Group 0x9 - MUL, ASR16, MULMVZ, MULAC, MULMV
+# -------------------------------------------------------------------
+
+# MUL $axS.l, $axS.h - 1001 s000
+mul         [0:3]=1001 s:u8[4] [5:7]=000 ext:GcDspExt[8:15]
+            | "MUL{ext.mnemonic} $ax{s}.l, $ax{s}.h{ext.operands}"
+
+# ASR16 $acR - 1001 r001
+asr16       [0:3]=1001 r:u8[4] [5:7]=001 ext:GcDspExt[8:15]
+            | "ASR16{ext.mnemonic} $ac{r}{ext.operands}"
+
+# MULMVZ $axS.l, $axS.h, $acR - 1001 s01r
+mulmvz      [0:3]=1001 s:u8[4] [5:6]=01 r:u8[7] ext:GcDspExt[8:15]
+            | "MULMVZ{ext.mnemonic} $ax{s}.l, $ax{s}.h, $ac{r}{ext.operands}"
+
+# MULAC $axS.l, $axS.h, $acR - 1001 s10r
+mulac       [0:3]=1001 s:u8[4] [5:6]=10 r:u8[7] ext:GcDspExt[8:15]
+            | "MULAC{ext.mnemonic} $ax{s}.l, $ax{s}.h, $ac{r}{ext.operands}"
+
+# MULMV $axS.l, $axS.h, $acR - 1001 s11r
+mulmv       [0:3]=1001 s:u8[4] [5:6]=11 r:u8[7] ext:GcDspExt[8:15]
+            | "MULMV{ext.mnemonic} $ax{s}.l, $ax{s}.h, $ac{r}{ext.operands}"
+
+# -------------------------------------------------------------------
+# Groups 0xA-0xB - MULX, ABS, TST, MULXMVZ, MULXAC, MULXMV
+# -------------------------------------------------------------------
+
+# MULX $ax0.T, $ax1.S - 101s t000
+mulx        [0:2]=101 s:u8[3] t:u8[4] [5:7]=000 ext:GcDspExt[8:15]
+            | "MULX{ext.mnemonic} $ax0.{t ? h : l}, $ax1.{s ? h : l}{ext.operands}"
+
+# ABS $acD - 1010 d001
+abs_ac      [0:3]=1010 d:u8[4] [5:7]=001 ext:GcDspExt[8:15]
+            | "ABS{ext.mnemonic} $ac{d}{ext.operands}"
+
+# TST $acR - 1011 r001
+tst         [0:3]=1011 r:u8[4] [5:7]=001 ext:GcDspExt[8:15]
+            | "TST{ext.mnemonic} $ac{r}{ext.operands}"
+
+# MULXMVZ - 101s t01r
+mulxmvz     [0:2]=101 s:u8[3] t:u8[4] [5:6]=01 r:u8[7] ext:GcDspExt[8:15]
+            | "MULXMVZ{ext.mnemonic} $ax0.{t ? h : l}, $ax1.{s ? h : l}, $ac{r}{ext.operands}"
+
+# MULXAC - 101s t10r
+mulxac      [0:2]=101 s:u8[3] t:u8[4] [5:6]=10 r:u8[7] ext:GcDspExt[8:15]
+            | "MULXAC{ext.mnemonic} $ax0.{t ? h : l}, $ax1.{s ? h : l}, $ac{r}{ext.operands}"
+
+# MULXMV - 101s t11r
+mulxmv      [0:2]=101 s:u8[3] t:u8[4] [5:6]=11 r:u8[7] ext:GcDspExt[8:15]
+            | "MULXMV{ext.mnemonic} $ax0.{t ? h : l}, $ax1.{s ? h : l}, $ac{r}{ext.operands}"
+
+# -------------------------------------------------------------------
+# Group 0xC - MULC, CMPAXH, MULCMVZ, MULCAC, MULCMV
+# -------------------------------------------------------------------
+
+# MULC $acS.m, $axT.h - 110s t000
+mulc        [0:2]=110 s:u8[3] t:u8[4] [5:7]=000 ext:GcDspExt[8:15]
+            | "MULC{ext.mnemonic} $ac{s}.m, $ax{t}.h{ext.operands}"
+
+# CMPAXH $acR, $axS.h - 110r s001
+cmpaxh      [0:2]=110 r:u8[3] s:u8[4] [5:7]=001 ext:GcDspExt[8:15]
+            | "CMPAXH{ext.mnemonic} $ac{r}, $ax{s}.h{ext.operands}"
+
+# MULCMVZ - 110s t01r
+mulcmvz     [0:2]=110 s:u8[3] t:u8[4] [5:6]=01 r:u8[7] ext:GcDspExt[8:15]
+            | "MULCMVZ{ext.mnemonic} $ac{s}.m, $ax{t}.h, $ac{r}{ext.operands}"
+
+# MULCAC - 110s t10r
+mulcac      [0:2]=110 s:u8[3] t:u8[4] [5:6]=10 r:u8[7] ext:GcDspExt[8:15]
+            | "MULCAC{ext.mnemonic} $ac{s}.m, $ax{t}.h, $ac{r}{ext.operands}"
+
+# MULCMV - 110s t11r
+mulcmv      [0:2]=110 s:u8[3] t:u8[4] [5:6]=11 r:u8[7] ext:GcDspExt[8:15]
+            | "MULCMV{ext.mnemonic} $ac{s}.m, $ax{t}.h, $ac{r}{ext.operands}"
+
+# -------------------------------------------------------------------
+# Group 0xE - MADDX, MSUBX, MADDC, MSUBC
+# -------------------------------------------------------------------
+
+# MADDX $ax0.S, $ax1.T - 1110 00st
+maddx       [0:3]=1110 [4:5]=00 s:u8[6] t:u8[7] ext:GcDspExt[8:15]
+            | "MADDX{ext.mnemonic} $ax0.{s ? h : l}, $ax1.{t ? h : l}{ext.operands}"
+
+# MSUBX $ax0.S, $ax1.T - 1110 01st
+msubx       [0:3]=1110 [4:5]=01 s:u8[6] t:u8[7] ext:GcDspExt[8:15]
+            | "MSUBX{ext.mnemonic} $ax0.{s ? h : l}, $ax1.{t ? h : l}{ext.operands}"
+
+# MADDC $acS.m, $axT.h - 1110 10st
+maddc       [0:3]=1110 [4:5]=10 s:u8[6] t:u8[7] ext:GcDspExt[8:15]
+            | "MADDC{ext.mnemonic} $ac{s}.m, $ax{t}.h{ext.operands}"
+
+# MSUBC $acS.m, $axT.h - 1110 11st
+msubc       [0:3]=1110 [4:5]=11 s:u8[6] t:u8[7] ext:GcDspExt[8:15]
+            | "MSUBC{ext.mnemonic} $ac{s}.m, $ax{t}.h{ext.operands}"
+
+# -------------------------------------------------------------------
+# Group 0xF - LSL16, LSR16, MADD, MSUB, ADDPAXZ, CLRL, MOVPZ
+# -------------------------------------------------------------------
+
+# LSL16 $acR - 1111 000r
+lsl16       [0:3]=1111 [4:6]=000 r:u8[7] ext:GcDspExt[8:15]
+            | "LSL16{ext.mnemonic} $ac{r}{ext.operands}"
+
+# MADD $axS.l, $axS.h - 1111 001s
+madd        [0:3]=1111 [4:6]=001 s:u8[7] ext:GcDspExt[8:15]
+            | "MADD{ext.mnemonic} $ax{s}.l, $ax{s}.h{ext.operands}"
+
+# LSR16 $acR - 1111 010r
+lsr16       [0:3]=1111 [4:6]=010 r:u8[7] ext:GcDspExt[8:15]
+            | "LSR16{ext.mnemonic} $ac{r}{ext.operands}"
+
+# MSUB $axS.l, $axS.h - 1111 011s
+msub        [0:3]=1111 [4:6]=011 s:u8[7] ext:GcDspExt[8:15]
+            | "MSUB{ext.mnemonic} $ax{s}.l, $ax{s}.h{ext.operands}"
+
+# ADDPAXZ $acD, $axS - 1111 10sd
+addpaxz     [0:3]=1111 [4:5]=10 s:u8[6] d:u8[7] ext:GcDspExt[8:15]
+            | "ADDPAXZ{ext.mnemonic} $ac{d}, $ax{s}{ext.operands}"
+
+# CLRL $acR.l - 1111 110r
+clrl        [0:3]=1111 [4:6]=110 r:u8[7] ext:GcDspExt[8:15]
+            | "CLRL{ext.mnemonic} $ac{r}.l{ext.operands}"
+
+# MOVPZ $acD - 1111 111d
+movpz       [0:3]=1111 [4:6]=111 d:u8[7] ext:GcDspExt[8:15]
+            | "MOVPZ{ext.mnemonic} $ac{d}{ext.operands}"

@@ -1,0 +1,93 @@
+name: 'main'
+
+object_base: 'orig/43J'
+object: '00000008.app'
+
+hash: c94c8e671854d56fa2abd4c4c886e6c62a2c7f0e
+
+symbols: 'config/43J/symbols.txt'
+splits: 'config/43J/splits.txt'
+
+ldscript_template: 'config/ldscript_ipl2.lcf'
+
+quick_analysis: true
+fill_gaps: false
+
+extract:
+    - symbol: ipl_error_eng_bmg
+      binary: ipl_error_eng.bmg
+      header: ipl_error_eng_bmg.inc
+
+    - symbol: ipl_error_fra_bmg
+      binary: ipl_error_fra.bmg
+      header: ipl_error_fra_bmg.inc
+
+    - symbol: ipl_error_ger_bmg
+      binary: ipl_error_ger.bmg
+      header: ipl_error_ger_bmg.inc
+
+    - symbol: ipl_error_ita_bmg
+      binary: ipl_error_ita.bmg
+      header: ipl_error_ita_bmg.inc
+
+    - symbol: ipl_error_jpn_bmg
+      binary: ipl_error_jpn.bmg
+      header: ipl_error_jpn_bmg.inc
+
+    - symbol: ipl_error_ned_bmg
+      binary: ipl_error_ned.bmg
+      header: ipl_error_ned_bmg.inc
+
+    - symbol: ipl_error_spa_bmg
+      binary: ipl_error_spa.bmg
+      header: ipl_error_spa_bmg.inc
+
+    - symbol: ipl_error_kor_bmg
+      binary: ipl_error_kor.bmg
+      header: ipl_error_kor_bmg.inc
+
+    - symbol: ipl_error_chn_bmg
+      binary: ipl_error_chn.bmg
+      header: ipl_error_chn_bmg.inc
+
+    - symbol: fatalDlg_ash
+      binary: fatalDlg.ash
+      header: fatalDlg_ash.inc
+
+    - symbol: backToWiiMenu_arc
+      binary: backToWiiMenu.arc
+      header: backToWiiMenu_arc.inc
+
+    - symbol: DSPInitCode
+      binary: dsp\initCode.bin
+      header: DSPInitCode.inc
+
+    - symbol: axDspSlave
+      binary: ax\dspSlave.bin
+      header: axDspSlave.inc
+
+    - symbol: ca_dpki
+      binary: certs\ca_dpki.cert
+      header: ca_dpki_cert.inc
+
+    - symbol: ca_ppki
+      binary: certs\ca_ppki.cert
+      header: ca_ppki_cert.inc
+
+    - symbol: ms_dpki
+      binary: certs\ms_dpki.cert
+      header: ms_dpki_cert.inc
+
+    - symbol: ms_ppki
+      binary: certs\ms_ppki.cert
+      header: ms_ppki_cert.inc
+
+    - symbol: c_es_encrypt_iv__Q23ipl12NandSDWorker
+      rename: ipl::NandSDWorker::c_es_encrypt_iv
+      binary: system/nandsdworker/es_encrypt.bin
+      header: system/nandsdworker/es_encrypt.inc
+
+    - symbol: c_md5_secret_key__Q23ipl12NandSDWorker
+      rename: ipl::NandSDWorker::c_md5_secret_key
+      binary: system/nandsdworker/md5_secret_key.bin
+      header: system/nandsdworker/md5_secret_key.inc

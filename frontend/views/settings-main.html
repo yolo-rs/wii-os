@@ -1,0 +1,432 @@
+<div class="settings settings-main">
+  <!-- En-tête officiel Wii Settings -->
+  <header class="settings-header animate" role="banner">
+    <div class="settings-title-group">
+      <h1 class="settings-title">Paramètres Wii</h1>
+      <div class="settings-page-pill" id="settings-page-indicator" aria-live="polite">Page 1 / 4</div>
+    </div>
+  </header>
+
+  <!-- Zone de contenu avec pagination 4 pages authentique -->
+  <main class="settings-content" role="main">
+    <!-- Flèche gauche de changement de page -->
+    <button id="settings-btn-prev" class="settings-arrow-btn left" type="button" aria-label="Page précédente" title="Page précédente" disabled>
+      <div class="arrow-icon prev-icon"></div>
+    </button>
+
+    <!-- Conteneur des 4 pages de configuration -->
+    <div class="settings-pages-track" id="settings-pages-track">
+      <!-- PAGE 1: AFFICHAGE & GRAPHISMES (Dolphin / Gecko GX Video Backend) -->
+      <section class="settings-page-card active" id="settings-page-1" data-page="1" aria-label="Affichage et Graphismes">
+        <h2 class="settings-category-title">Affichage &amp; Moteur Graphique (GX / Dolphin)</h2>
+        <div class="settings-grid">
+          <!-- Option 1: Moteur de rendu -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">Moteur Graphique</span>
+              <span class="setting-desc">DirectX 12 / Vulkan / WebGPU natif</span>
+            </div>
+            <div class="setting-controls">
+              <button class="wii-choice-btn active" data-cfg="videoBackend" data-val="WebGPU">WebGPU (DX12/VK)</button>
+              <button class="wii-choice-btn" data-cfg="videoBackend" data-val="WebGL2">WebGL2</button>
+            </div>
+          </article>
+
+          <!-- Option 2: Résolution interne -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">Résolution Interne</span>
+              <span class="setting-desc">Multiplicateur EFB natif 480p à 4K</span>
+            </div>
+            <div class="setting-controls">
+              <button class="wii-choice-btn" data-cfg="internalResolution" data-val="1x">1x Native</button>
+              <button class="wii-choice-btn active" data-cfg="internalResolution" data-val="2x">2x 720p</button>
+              <button class="wii-choice-btn" data-cfg="internalResolution" data-val="3x">3x 1080p</button>
+              <button class="wii-choice-btn" data-cfg="internalResolution" data-val="4x">4x 1440p</button>
+            </div>
+          </article>
+
+          <!-- Option 3: Format d'écran -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">Format d'Écran</span>
+              <span class="setting-desc">Correction anamorphique 16:9 Wii</span>
+            </div>
+            <div class="setting-controls">
+              <button class="wii-choice-btn active" data-cfg="aspectRatio" data-val="16:9">16:9 Panoramique</button>
+              <button class="wii-choice-btn" data-cfg="aspectRatio" data-val="4:3">4:3 Standard</button>
+              <button class="wii-choice-btn" data-cfg="aspectRatio" data-val="stretch">Étiré</button>
+            </div>
+          </article>
+
+          <!-- Option 4: Anti-Aliasing (MSAA) & V-Sync -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">Anti-Aliasing &amp; V-Sync</span>
+              <span class="setting-desc">Lissage des arêtes MSAA &amp; 60 FPS</span>
+            </div>
+            <div class="setting-controls">
+              <button class="wii-choice-btn" data-cfg="msaa" data-val="Off">Désactivé</button>
+              <button class="wii-choice-btn active" data-cfg="msaa" data-val="4x">MSAA 4x</button>
+              <button class="wii-toggle-btn active" data-cfg="vsync" data-val="true">V-Sync 60 FPS</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- PAGE 2: AUDIO & DSP (Dolphin Audio Engine) -->
+      <section class="settings-page-card" id="settings-page-2" data-page="2" aria-label="Audio et Son DSP">
+        <h2 class="settings-category-title">Audio &amp; Émulateur DSP (Dolby Surround)</h2>
+        <div class="settings-grid">
+          <!-- Option 1: Mode Audio -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">Mode de Sortie</span>
+              <span class="setting-desc">Sortie sonore Wii officielle</span>
+            </div>
+            <div class="setting-controls">
+              <button class="wii-choice-btn active" data-cfg="soundMode" data-val="stereo">Stéréo</button>
+              <button class="wii-choice-btn" data-cfg="soundMode" data-val="surround">Dolby Pro Logic II</button>
+              <button class="wii-choice-btn" data-cfg="soundMode" data-val="mono">Mono</button>
+            </div>
+          </article>
+
+          <!-- Option 2: Moteur DSP -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">Émulation DSP</span>
+              <span class="setting-desc">DSP HLE haute vitesse ou LLE exact</span>
+            </div>
+            <div class="setting-controls">
+              <button class="wii-choice-btn active" data-cfg="dspEngine" data-val="HLE">DSP HLE (Recommandé)</button>
+              <button class="wii-choice-btn" data-cfg="dspEngine" data-val="LLE">DSP LLE (Cycle-Exact)</button>
+            </div>
+          </article>
+
+          <!-- Option 3: Volume Musique de fond -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">Volume Musique (BGM)</span>
+              <span class="setting-desc" id="bgm-vol-label">Volume actuel : 80%</span>
+            </div>
+            <div class="setting-controls">
+              <input id="bgm-range" class="wii-slider" type="range" min="0" max="100" value="80" aria-label="Volume BGM">
+              <button class="wii-test-sound-btn" id="btn-test-bgm" type="button">▶ Tester</button>
+            </div>
+          </article>
+
+          <!-- Option 4: Volume Effets Sonores (SFX) & Étirement -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">Effets SFX &amp; Étirement</span>
+              <span class="setting-desc">Son sans craquement (Audio Stretching)</span>
+            </div>
+            <div class="setting-controls">
+              <input id="sfx-range" class="wii-slider" type="range" min="0" max="100" value="95" aria-label="Volume SFX">
+              <button class="wii-toggle-btn active" data-cfg="audioStretching" data-val="true">Étirement Audio</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- PAGE 3: MANETTES & TÉLÉCOMMANDE WII (Wiimote / Gamepad / Clavier) -->
+      <section class="settings-page-card" id="settings-page-3" data-page="3" aria-label="Manettes et Wiimote">
+        <h2 class="settings-category-title">Manettes, Capteur Infrarouge &amp; Vibrations</h2>
+        <div class="settings-grid">
+          <!-- Option 1: Périphérique Manette -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">Périphérique Joueur 1</span>
+              <span class="setting-desc">Détection Xbox, PS5/PS4, Clavier/Souris</span>
+            </div>
+            <div class="setting-controls">
+              <button class="wii-choice-btn active" data-cfg="padDevice" data-val="auto">Auto (Xbox/PS)</button>
+              <button class="wii-choice-btn" data-cfg="padDevice" data-val="keyboard">Clavier + Souris</button>
+            </div>
+          </article>
+
+          <!-- Option 2: Pointeur IR -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">Pointeur Infrarouge (IR)</span>
+              <span class="setting-desc">Émulation du pointeur Wiimote</span>
+            </div>
+            <div class="setting-controls">
+              <button class="wii-choice-btn active" data-cfg="irSource" data-val="mouse">Curseur Souris</button>
+              <button class="wii-choice-btn" data-cfg="irSource" data-val="stick">Stick Droit (R3)</button>
+            </div>
+          </article>
+
+          <!-- Option 3: Position du capteur Sensor Bar -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">Position Capteur Sensor Bar</span>
+              <span class="setting-desc">Hauteur de référence pour la visée</span>
+            </div>
+            <div class="setting-controls">
+              <button class="wii-choice-btn active" data-cfg="sensorBarPosition" data-val="bottom">Au-dessous (Bas)</button>
+              <button class="wii-choice-btn" data-cfg="sensorBarPosition" data-val="top">Au-dessus (Haut)</button>
+            </div>
+          </article>
+
+          <!-- Option 4: Vibrations & Retour haptique -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">Vibrations (Rumble)</span>
+              <span class="setting-desc">Moteurs de vibration manette &amp; Wiimote</span>
+            </div>
+            <div class="setting-controls">
+              <button class="wii-toggle-btn active" data-cfg="rumble" data-val="true">Vibrations Activées</button>
+              <button class="wii-test-sound-btn" id="btn-test-rumble" type="button">⚡ Tester vibration</button>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <!-- PAGE 4: CŒUR CPU, SYSTÈME & NETPLAY (Dolphin / Gecko / Wiimmfi) -->
+      <section class="settings-page-card" id="settings-page-4" data-page="4" aria-label="Cœur CPU et NetPlay">
+        <h2 class="settings-category-title">Cœur CPU, NetPlay &amp; Mémoire NAND</h2>
+        <div class="settings-grid">
+          <!-- Option 1: Recompilateur JIT CPU -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">Moteur CPU PowerPC</span>
+              <span class="setting-desc">Recompilateur JIT dynamique rapide</span>
+            </div>
+            <div class="setting-controls">
+              <button class="wii-choice-btn active" data-cfg="cpuEngine" data-val="JIT">Recompilateur JIT (60 FPS)</button>
+              <button class="wii-choice-btn" data-cfg="cpuEngine" data-val="Interpreter">Interpréteur</button>
+            </div>
+          </article>
+
+          <!-- Option 2: Double Cœur (Dual Core) -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">Mode Double Cœur</span>
+              <span class="setting-desc">Séparation des threads CPU et GPU</span>
+            </div>
+            <div class="setting-controls">
+              <button class="wii-toggle-btn active" data-cfg="dualCore" data-val="true">Double Cœur Activé</button>
+            </div>
+          </article>
+
+          <!-- Option 3: Multijoueur NetPlay & Port -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">NetPlay Port &amp; Tampon</span>
+              <span class="setting-desc">Port 2626 • Tampon d'entrée (Pad Buffer)</span>
+            </div>
+            <div class="setting-controls">
+              <button class="wii-choice-btn active" data-cfg="padBuffer" data-val="4">4 Frames (LAN/Fibre)</button>
+              <button class="wii-choice-btn" data-cfg="padBuffer" data-val="6">6 Frames (Standard)</button>
+              <button class="wii-choice-btn" data-cfg="padBuffer" data-val="10">10 Frames (Wi-Fi)</button>
+            </div>
+          </article>
+
+          <!-- Option 4: Mémoire NAND & Code Ami Wii -->
+          <article class="setting-item" tabindex="0">
+            <div class="setting-info">
+              <span class="setting-name">Code Ami &amp; Blocs NAND</span>
+              <span class="setting-desc">Code Ami : <strong>4821-9034-7712-6508</strong></span>
+            </div>
+            <div class="setting-controls">
+              <span class="nand-status-pill">2 048 / 2 174 Blocs Libres</span>
+              <button class="wii-choice-btn" id="btn-sync-settings" type="button">💾 Sauvegarder</button>
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
+
+    <!-- Flèche droite de changement de page -->
+    <button id="settings-btn-next" class="settings-arrow-btn right" type="button" aria-label="Page suivante" title="Page suivante">
+      <div class="arrow-icon next-icon"></div>
+    </button>
+  </main>
+
+  <!-- Pied de page officiel avec bouton Retour -->
+  <footer class="settings-footer animate" role="contentinfo">
+    <button class="wii-settings-back-btn viewchange" data-view="menu" data-transition="fade" type="button" aria-label="Retour au Menu Wii">
+      <span class="back-text">Retour</span>
+    </button>
+  </footer>
+</div>
+
+<script>
+(() => {
+  // Gestionnaire de navigation et persistance des paramètres Wii (Dolphin / Gecko OS)
+  let currentPage = 1;
+  const totalPages = 4;
+
+  const track = document.getElementById("settings-pages-track");
+  const indicator = document.getElementById("settings-page-indicator");
+  const btnPrev = document.getElementById("settings-btn-prev");
+  const btnNext = document.getElementById("settings-btn-next");
+
+  // Charger la configuration sauvegardée
+  const savedConfig = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("wii_sysconf") || "{}");
+    } catch {
+      return {};
+    }
+  })();
+
+  function playSound(id) {
+    try {
+      const audio = document.getElementById(id);
+      if (audio) {
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+      }
+    } catch {}
+  }
+
+  function updatePageDisplay() {
+    indicator.textContent = `Page ${currentPage} / ${totalPages}`;
+    btnPrev.disabled = currentPage === 1;
+    btnNext.disabled = currentPage === totalPages;
+
+    document.querySelectorAll(".settings-page-card").forEach((card, idx) => {
+      card.classList.toggle("active", idx + 1 === currentPage);
+    });
+    playSound("zip");
+  }
+
+  btnPrev?.addEventListener("click", () => {
+    if (currentPage > 1) {
+      currentPage--;
+      updatePageDisplay();
+    }
+  });
+
+  btnNext?.addEventListener("click", () => {
+    if (currentPage < totalPages) {
+      currentPage++;
+      updatePageDisplay();
+    }
+  });
+
+  // Gestion des clics sur les boutons de sélection
+  document.querySelectorAll(".wii-choice-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.cfg;
+      const val = btn.dataset.val;
+      if (!key) return;
+
+      // Décocher les frères
+      btn.parentElement.querySelectorAll(`.wii-choice-btn[data-cfg="${key}"]`).forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      savedConfig[key] = val;
+      persistConfig();
+      playSound("select");
+    });
+  });
+
+  // Gestion des boutons à bascule (Toggle)
+  document.querySelectorAll(".wii-toggle-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.cfg;
+      if (!key) return;
+      const nowActive = !btn.classList.contains("active");
+      btn.classList.toggle("active", nowActive);
+      savedConfig[key] = nowActive;
+      persistConfig();
+      playSound("select");
+    });
+  });
+
+  // Slider BGM
+  const bgmSlider = document.getElementById("bgm-range");
+  const bgmLabel = document.getElementById("bgm-vol-label");
+  bgmSlider?.addEventListener("input", (e) => {
+    const val = e.target.value;
+    bgmLabel.textContent = `Volume actuel : ${val}%`;
+    savedConfig.bgmVolume = Number(val);
+    const bgmAudio = document.getElementById("bg-music");
+    if (bgmAudio) bgmAudio.volume = Number(val) / 100;
+  });
+  bgmSlider?.addEventListener("change", persistConfig);
+
+  // Slider SFX
+  const sfxSlider = document.getElementById("sfx-range");
+  sfxSlider?.addEventListener("input", (e) => {
+    savedConfig.sfxVolume = Number(e.target.value);
+  });
+  sfxSlider?.addEventListener("change", () => {
+    persistConfig();
+    playSound("select");
+  });
+
+  // Bouton test vibration
+  document.getElementById("btn-test-rumble")?.addEventListener("click", () => {
+    playSound("select");
+    if ("vibrate" in navigator) {
+      navigator.vibrate([120, 60, 180]);
+    }
+    const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for (const gp of gamepads) {
+      if (gp?.vibrationActuator?.playEffect) {
+        gp.vibrationActuator.playEffect("dual-rumble", {
+          startDelay: 0,
+          duration: 300,
+          weakMagnitude: 0.8,
+          strongMagnitude: 1.0,
+        }).catch(() => {});
+      }
+    }
+  });
+
+  // Bouton test son BGM
+  document.getElementById("btn-test-bgm")?.addEventListener("click", () => {
+    playSound("select");
+    const bgm = document.getElementById("bg-music");
+    if (bgm) {
+      if (bgm.paused) {
+        bgm.play().catch(() => {});
+      } else {
+        bgm.pause();
+      }
+    }
+  });
+
+  // Bouton manuel de sauvegarde
+  document.getElementById("btn-sync-settings")?.addEventListener("click", () => {
+    persistConfig();
+    playSound("select");
+    const btn = document.getElementById("btn-sync-settings");
+    const oldText = btn.textContent;
+    btn.textContent = "✔ Synchronisé !";
+    setTimeout(() => { btn.textContent = oldText; }, 1500);
+  });
+
+  function persistConfig() {
+    try {
+      localStorage.setItem("wii_sysconf", JSON.stringify(savedConfig));
+      fetch("/v1/sysconf", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(savedConfig),
+      }).catch(() => {});
+    } catch {}
+  }
+
+  // Appliquer les valeurs sauvegardées au chargement
+  for (const [key, val] of Object.entries(savedConfig)) {
+    const choiceBtn = document.querySelector(`.wii-choice-btn[data-cfg="${key}"][data-val="${val}"]`);
+    if (choiceBtn) {
+      choiceBtn.parentElement.querySelectorAll(`.wii-choice-btn[data-cfg="${key}"]`).forEach((b) => b.classList.remove("active"));
+      choiceBtn.classList.add("active");
+    }
+    const toggleBtn = document.querySelector(`.wii-toggle-btn[data-cfg="${key}"]`);
+    if (toggleBtn) {
+      toggleBtn.classList.toggle("active", Boolean(val));
+    }
+  }
+
+  // Sons de survol pour tous les boutons
+  document.querySelectorAll("button, .setting-item").forEach((el) => {
+    el.addEventListener("mouseenter", () => playSound("hover"));
+  });
+})();
+</script>

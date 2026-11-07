@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Gecko</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #111;
+            color: #ccc;
+            font-family: system-ui, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #setup {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        #setup h2 {
+            margin-bottom: 4px;
+        }
+
+        .file-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .file-row .file-label {
+            width: 100px;
+            text-align: right;
+            color: #aaa;
+            font-size: 14px;
+        }
+
+        .file-picker {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex: 0 0 auto;
+            width: auto;
+            white-space: nowrap;
+            line-height: 1.2;
+            text-align: center;
+        }
+
+        .file-row .name {
+            color: #8f8;
+            font-size: 14px;
+            min-width: 120px;
+        }
+
+        .file-picker,
+        #start {
+            background: #333;
+            color: #ccc;
+            border: 1px solid #555;
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .file-picker:hover,
+        #start:hover {
+            background: #444;
+            border-color: #8f8;
+        }
+
+        #start {
+            margin-top: 8px;
+            padding: 10px 32px;
+            font-size: 16px;
+            align-self: stretch;
+            text-align: center;
+        }
+
+        #start:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        #load-status {
+            max-width: 720px;
+            min-height: 1.4em;
+            color: #aaa;
+            text-align: center;
+            font-size: 13px;
+        }
+
+        canvas {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .file-picker input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- shoutout to hazel, vxpm, geo, pdawg, lycoder and everyone else :> -->
+
+    <div id="setup">
+        <div class="file-row">
+            <label class="file-label">Disc / IPL / DOL:</label>
+            <label class="file-picker">
+                <span>Choose file</span>
+                <input type="file" id="input-rom" accept=".rvz,.dol,.bin,.ipl">
+            </label>
+            <span class="name" id="rom-name">none</span>
+        </div>
+
+        <div class="file-row">
+            <label class="file-label">DSP IROM (optional):</label>
+            <label class="file-picker">
+                <span>Choose file</span>
+                <input type="file" id="input-dsp" accept=".bin">
+            </label>
+            <span class="name" id="dsp-name">Dolphin's DSP ROM</span>
+        </div>
+
+        <div class="file-row">
+            <label class="file-label">Optional IPL / ROM-font override:</label>
+            <label class="file-picker">
+                <span>Choose file</span>
+                <input type="file" id="input-ipl" accept=".bin,.ipl">
+            </label>
+            <span class="name" id="ipl-name">built-in licensed font fallback</span>
+        </div>
+
+        <button id="start" disabled>Start</button>
+        <progress id="load-progress" max="100" value="0" hidden></progress>
+        <p id="load-status" role="status" aria-live="polite">Wii RVZ disc images are read locally in 8 MiB chunks. Gecko includes a licensed Wii ROM-font fallback; a user IPL dump can override it.</p>
+    </div>
+
+    <div id="bt3-dock" style="display:none; position:fixed; bottom:10px; left:50%; transform:translateX(-50%); z-index:9999; background:rgba(14,18,28,0.88); border:1px solid rgba(110,200,255,0.45); border-radius:999px; padding:6px 14px; gap:8px; align-items:center; backdrop-filter:blur(10px); box-shadow:0 8px 24px rgba(0,0,0,0.6); font-size:12px;">
+        <span style="color:#7ee0ff; font-weight:700; margin-right:4px;">🐉 BT3 Wii WebGPU</span>
+        <button onclick="window.triggerBt3Action('press_a')" style="background:#1e293b; color:#e2e8f0; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">⏭ Skip/Start (A+)</button>
+        <button onclick="window.triggerBt3Action('kamehameha')" style="background:#1e293b; color:#fcd34d; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">🔥 Kamehameha (Q)</button>
+        <button onclick="window.triggerBt3Action('genkidama')" style="background:#1e293b; color:#60a5fa; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">🌐 Genkidama (E)</button>
+        <button onclick="window.triggerBt3Action('transform')" style="background:#1e293b; color:#c084fc; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">✨ Transform (R)</button>
+        <button onclick="window.triggerBt3Action('toggle_60hz')" style="background:#1e293b; color:#38bdf8; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">⚡ 60Hz PAL</button>
+        <button onclick="window.triggerBt3Action('save_state')" style="background:#1e293b; color:#e2e8f0; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">💾 Save (F5)</button>
+        <button onclick="window.triggerBt3Action('load_state')" style="background:#1e293b; color:#e2e8f0; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">📂 Load (F8)</button>
+        <button onclick="window.triggerBt3Action('home')" style="background:#1e293b; color:#e2e8f0; border:1px solid #475569; border-radius:999px; padding:4px 10px; cursor:pointer;">🏠 Wii Home (H)</button>
+        <button onclick="window.triggerBt3Action('toggle_re_inspector')" style="background:#312e81; color:#c7d2fe; border:1px solid #6366f1; border-radius:999px; padding:4px 10px; cursor:pointer;">🔬 RE SDK</button>
+        <a href="/shenron" style="background:linear-gradient(135deg,#059669,#047857); color:#fef08a; border:1px solid #34d399; border-radius:999px; padding:4px 10px; text-decoration:none; font-weight:700;">🐉 Mini-Jeu & CDN Shenron</a>
+    </div>
+
+    <script type="module">
+        import init, {
+            append_game_chunk,
+            begin_game_load,
+            cancel_game_load,
+            prepare_audio,
+            start_emulator,
+            start_loaded_game_with_ipl,
+            trigger_bt3_action,
+        } from './pkg/gecko_web.js';
+
+        window.triggerBt3Action = (action) => {
+            try { trigger_bt3_action(action); } catch (e) { console.warn(e); }
+        };
+
+        async function run() {
+            await init();
+
+            let romFile = null;
+            let dspData = null;
+            let iplData = null;
+            const searchParams = new URLSearchParams(window.location.search);
+            const packagedGameUrl = searchParams.get('game');
+            const autoBoot = searchParams.get('autoboot') === '1';
+
+            const inputRom = document.getElementById('input-rom');
+            const inputDsp = document.getElementById('input-dsp');
+            const inputIpl = document.getElementById('input-ipl');
+            const romNameEl = document.getElementById('rom-name');
+            const dspNameEl = document.getElementById('dsp-name');
+            const iplNameEl = document.getElementById('ipl-name');
+            const startBtn = document.getElementById('start');
+
+            function readFile(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(new Uint8Array(reader.result));
+                    reader.onerror = () => reject(reader.error ?? new Error('Lecture du fichier impossible.'));
+                    reader.onabort = () => reject(new Error('Lecture du fichier annulée.'));
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+
+            inputRom.addEventListener('change', async (e) => {
+                if (e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    romFile = file;
+                    romNameEl.textContent = file.name;
+                    startBtn.disabled = false;
+                    document.getElementById('load-status').textContent = `${(file.size / (1024 ** 3)).toFixed(2)} GiB selected; it stays on this device.`;
+                }
+            });
+
+            if (packagedGameUrl) {
+                const url = new URL(packagedGameUrl, window.location.href);
+                if (/\.rvz$/i.test(url.pathname)) {
+                    const packagedName = decodeURIComponent(url.pathname.split('/').pop());
+                    romNameEl.textContent = `${packagedName} (CDN Shenron / Wii OS)`;
+                    startBtn.disabled = false;
+                    document.getElementById('load-status').textContent = 'Le fichier RVZ sera chargé en mémoire avant le démarrage.';
+                } else {
+                    document.getElementById('load-status').textContent = 'The catalog game URL is invalid or is not an RVZ disc.';
+                }
+            }
+
+            inputDsp.addEventListener('change', async (e) => {
+                if (e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    dspData = await readFile(file);
+                    dspNameEl.textContent = file.name;
+                }
+            });
+
+            inputIpl.addEventListener('change', async (e) => {
+                if (e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    iplData = await readFile(file);
+                    iplNameEl.textContent = file.name;
+                }
+            });
+
+            startBtn.addEventListener('click', async () => {
+                if (!romFile && !packagedGameUrl) return;
+                try { prepare_audio(); } catch (error) { console.warn('Browser audio could not be prepared:', error); }
+                const status = document.getElementById('load-status');
+                const progress = document.getElementById('load-progress');
+                const packagedUrl = packagedGameUrl ? new URL(packagedGameUrl, window.location.href) : null;
+                const isDisc = romFile ? /\.rvz$/i.test(romFile.name) : packagedUrl.pathname.toLowerCase().endsWith('.rvz');
+                const discName = romFile ? romFile.name : decodeURIComponent(packagedUrl.pathname.split('/').pop());
+                startBtn.disabled = true;
+                try {
+                    if (isDisc) {
+                        progress.hidden = false;
+                        const chunkBytes = 8 * 1024 * 1024;
+                        if (romFile) {
+                            begin_game_load(discName, romFile.size);
+                            for (let offset = 0; offset < romFile.size; offset += chunkBytes) {
+                                const end = Math.min(offset + chunkBytes, romFile.size);
+                                const chunk = new Uint8Array(await romFile.slice(offset, end).arrayBuffer());
+                                append_game_chunk(chunk);
+                                progress.value = (end / romFile.size) * 100;
+                                status.textContent = `Lecture locale : ${(end / (1024 ** 3)).toFixed(2)} / ${(romFile.size / (1024 ** 3)).toFixed(2)} GiB`;
+                            }
+                        } else {
+                            if (packagedUrl.origin !== window.location.origin) throw new Error('Le jeu empaqueté doit être servi depuis la même origine.');
+                            const response = await fetch(packagedUrl);
+                            if (!response.ok || !response.body) throw new Error(`Impossible de lire le jeu empaqueté : HTTP ${response.status}`);
+                            const totalSize = Number(response.headers.get('content-length'));
+                            if (!Number.isSafeInteger(totalSize) || totalSize <= 0) throw new Error('La réponse du serveur ne fournit pas une taille RVZ valide.');
+                            begin_game_load(discName, totalSize);
+                            const reader = response.body.getReader();
+                            let buffer = new Uint8Array(chunkBytes);
+                            let buffered = 0;
+                            let received = 0;
+                            while (true) {
+                                const { value, done } = await reader.read();
+                                if (done) break;
+                                let offset = 0;
+                                while (offset < value.length) {
+                                    const copyLength = Math.min(chunkBytes - buffered, value.length - offset);
+                                    buffer.set(value.subarray(offset, offset + copyLength), buffered);
+                                    buffered += copyLength;
+                                    offset += copyLength;
+                                    received += copyLength;
+                                    if (buffered === chunkBytes) {
+                                        append_game_chunk(buffer);
+                                        buffer = new Uint8Array(chunkBytes);
+                                        buffered = 0;
+                                    }
+                                }
+                                progress.value = (received / totalSize) * 100;
+                                status.textContent = `Chargement du jeu inclus : ${(received / (1024 ** 3)).toFixed(2)} / ${(totalSize / (1024 ** 3)).toFixed(2)} GiB`;
+                            }
+                            if (buffered > 0) append_game_chunk(buffer.subarray(0, buffered));
+                            if (received !== totalSize) throw new Error(`RVZ incomplet : ${received} / ${totalSize} octets reçus.`);
+                        }
+                        status.textContent = 'Initialisation du jeu…';
+                        start_loaded_game_with_ipl(iplData);
+                    } else {
+                        const romData = await readFile(romFile);
+                        start_emulator(romData, romFile.name, dspData ?? undefined);
+                    }
+                    document.getElementById('setup').style.display = 'none';
+                    document.getElementById('bt3-dock').style.display = 'flex';
+                } catch (error) {
+                    try { cancel_game_load(); } catch { /* Preserve the original load error. */ }
+                    progress.hidden = true;
+                    progress.value = 0;
+                    status.textContent = `Impossible de charger ce fichier : ${error}`;
+                    startBtn.disabled = false;
+                }
+            });
+
+            if (autoBoot && !startBtn.disabled) {
+                setTimeout(() => startBtn.click(), 120);
+            }
+        }
+
+        run();
+    </script>
+</body>
+
+</html>

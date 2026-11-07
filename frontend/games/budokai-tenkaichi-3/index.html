@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Dragon Ball Z : Budokai Tenkaichi 3 — Chaîne Disque Wii</title>
+    <link rel="icon" href="/assets/images/channel-icon.png" type="image/png">
+    <link rel="stylesheet" href="/assets/css/universal.css">
+    <link rel="stylesheet" href="/assets/css/tokens.css">
+    <link rel="stylesheet" href="/assets/css/wii-game-channel.css">
+</head>
+<body>
+
+    <!-- Effets Sonores Authentiques Wii -->
+    <audio id="sfx-hover" src="/assets/audio/button-hover.mp3" preload="auto"></audio>
+    <audio id="sfx-select" src="/assets/audio/button-select.mp3" preload="auto"></audio>
+    <audio id="sfx-back" src="/assets/audio/back.mp3" preload="auto"></audio>
+    <audio id="sfx-startup" src="/assets/audio/startup.mp3" preload="auto"></audio>
+    <audio id="sfx-zip" src="/assets/audio/zip.mp3" preload="auto"></audio>
+
+    <div id="wii-stage">
+
+        <!-- ========================================================
+             ÉCRAN DE BANNIÈRE OFFICIEL DE LA CHAÎNE WII (BT3)
+             ======================================================== -->
+        <main id="channel-banner-screen" role="main" aria-label="Chaîne Disque Dragon Ball Z Budokai Tenkaichi 3">
+            
+            <!-- Zone d'affichage de la Bannière (80% hauteur) -->
+            <div class="banner-viewport">
+                <!-- Artwork officiel extrait du jeu -->
+                <img class="banner-art" src="/assets/images/bt3-title.png" alt="Bannière Dragon Ball Z Budokai Tenkaichi 3">
+
+                <!-- 4 Coins incurvés authentiques Wii -->
+                <div class="border-topleft" aria-hidden="true"></div>
+                <div class="border-topright" aria-hidden="true"></div>
+                <div class="border-bottomleft" aria-hidden="true"></div>
+                <div class="border-bottomright" aria-hidden="true"></div>
+
+                <!-- Indicateur discret de lecture du disque Wii -->
+                <div class="disc-read-indicator" id="disc-status-box" role="status">
+                    <div class="disc-icon-spin" id="disc-spin"></div>
+                    <span class="disc-read-text" id="disc-status-text">Disque Prêt</span>
+                </div>
+            </div>
+
+            <!-- Barre inférieure authentique Wii (Splash Bar) -->
+            <footer class="splash-bar">
+                <nav class="splash-buttons" aria-label="Actions de la chaîne">
+                    <a href="/" class="wii-btn" id="btn-back">Menu Wii</a>
+                    <button class="wii-btn primary" id="btn-start" type="button">Démarrer</button>
+                </nav>
+
+                <!-- Bouton discret de changement de disque (Wii Slot) -->
+                <button class="disc-slot-btn" id="btn-change-disc" type="button" title="Insérer une image disque RVZ ou ISO locale">Changer de disque</button>
+                <input type="file" id="input-disc-file" class="hidden-file-input" accept=".rvz,.iso,.dol">
+            </footer>
+        </main>
+
+        <!-- Canvas de l'Émulateur Wii WebAssembly + WebGPU -->
+        <canvas id="emulator-canvas" tabindex="0" aria-label="Écran de jeu Wii Dragon Ball Z Budokai Tenkaichi 3"></canvas>
+
+        <!-- Déclencheur discret du Menu HOME en cours de jeu -->
+        <button id="home-trigger-btn" type="button" aria-label="Ouvrir le menu HOME Wii">HOME</button>
+
+        <!-- ========================================================
+             MENU HOME OFFICIEL WII (OVERLAY EN COURS DE JEU)
+             ======================================================== -->
+        <aside id="wii-home-menu" role="dialog" aria-modal="true" aria-label="Menu HOME Wii">
+            <div class="home-menu-dialog">
+                <header class="home-menu-header">
+                    <img src="/assets/images/bt3/home_menu/HomeButton2_homeBtn_arc_0x52A40_tex00_56x56_RGB5A3.png" width="36" height="36" alt="Icône HOME" style="filter: drop-shadow(0 1px 2px rgba(0,0,0,0.3));">
+                    <h2 class="home-menu-title">Menu HOME</h2>
+                </header>
+                <div class="home-menu-options">
+                    <button class="home-option-btn" id="home-btn-resume" type="button">Reprendre</button>
+                    <button class="home-option-btn" id="home-btn-reset" type="button">Recommencer</button>
+                    <button class="home-option-btn" id="home-btn-fullscreen" type="button">Plein Écran</button>
+                    <a href="/" class="home-option-btn" id="home-btn-wii-menu">Menu Wii</a>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Rideau noir de transition Wii -->
+        <div id="wii-fade-black" class="wii-fade-black" aria-hidden="true"></div>
+
+    </div>
+
+    <!-- Script du Vrai Moteur d'Émulation Wii WebAssembly & WebGPU -->
+    <script type="module">
+        import init, {
+            append_game_chunk,
+            begin_game_load,
+            cancel_game_load,
+            prepare_audio,
+            start_emulator,
+            start_loaded_game_with_ipl,
+            trigger_bt3_action
+        } from '/emulator/pkg/gecko_web.js';
+
+        // Sons UI Wii
+        const sfxHover = document.getElementById("sfx-hover");
+        const sfxSelect = document.getElementById("sfx-select");
+        const sfxBack = document.getElementById("sfx-back");
+        const sfxStartup = document.getElementById("sfx-startup");
+        const sfxZip = document.getElementById("sfx-zip");
+
+        function playSound(audioEl) {
+            if (!audioEl) return;
+            try {
+                audioEl.currentTime = 0;
+                const p = audioEl.play();
+                if (p) p.catch(() => {});
+            } catch (_) {}
+        }
+
+        // Éléments du DOM
+        const bannerScreen = document.getElementById("channel-banner-screen");
+        const btnStart = document.getElementById("btn-start");
+        const btnBack = document.getElementById("btn-back");
+        const btnChangeDisc = document.getElementById("btn-change-disc");
+        const inputDiscFile = document.getElementById("input-disc-file");
+        const discStatusText = document.getElementById("disc-status-text");
+        const discSpin = document.getElementById("disc-spin");
+        const canvas = document.getElementById("emulator-canvas");
+        const fadeBlack = document.getElementById("wii-fade-black");
+        const homeMenu = document.getElementById("wii-home-menu");
+        const homeTriggerBtn = document.getElementById("home-trigger-btn");
+        const homeBtnResume = document.getElementById("home-btn-resume");
+        const homeBtnReset = document.getElementById("home-btn-reset");
+        const homeBtnFullscreen = document.getElementById("home-btn-fullscreen");
+        const homeBtnWiiMenu = document.getElementById("home-btn-wii-menu");
+
+        // Hover audio sur tous les boutons Wii
+        document.querySelectorAll(".wii-btn, .home-option-btn, .disc-slot-btn, #home-trigger-btn").forEach(el => {
+            el.addEventListener("mouseenter", () => playSound(sfxHover));
+        });
+
+        btnBack.addEventListener("click", (e) => {
+            e.preventDefault();
+            playSound(sfxBack);
+            fadeBlack.classList.add("active");
+            setTimeout(() => {
+                window.location.href = "/";
+            }, 300);
+        });
+
+        // Fente de disque : sélection de fichier local (0s d'attente)
+        let localDiscFile = null;
+        btnChangeDisc.addEventListener("click", () => {
+            playSound(sfxSelect);
+            inputDiscFile.click();
+        });
+
+        inputDiscFile.addEventListener("change", (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                localDiscFile = e.target.files[0];
+                playSound(sfxSelect);
+                discStatusText.textContent = "Disque : " + localDiscFile.name;
+                discSpin.style.display = "none";
+            }
+        });
+
+        // Support du glisser-déposer de disque RVZ / ISO sur toute la fenêtre
+        window.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+        });
+        window.addEventListener("drop", (e) => {
+            e.preventDefault();
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                localDiscFile = e.dataTransfer.files[0];
+                playSound(sfxSelect);
+                discStatusText.textContent = "Disque : " + localDiscFile.name;
+                discSpin.style.display = "none";
+            }
+        });
+
+        // Gestion du Menu HOME Wii
+        let isHomeMenuOpen = false;
+        function toggleHomeMenu(force) {
+            isHomeMenuOpen = typeof force === "boolean" ? force : !isHomeMenuOpen;
+            if (isHomeMenuOpen) {
+                playSound(sfxSelect);
+                homeMenu.classList.add("active");
+            } else {
+                playSound(sfxBack);
+                homeMenu.classList.remove("active");
+                canvas.focus();
+            }
+        }
+
+        homeTriggerBtn.addEventListener("click", () => toggleHomeMenu());
+        homeBtnResume.addEventListener("click", () => toggleHomeMenu(false));
+        homeBtnReset.addEventListener("click", () => {
+            playSound(sfxSelect);
+            fadeBlack.classList.add("active");
+            setTimeout(() => {
+                window.location.reload();
+            }, 400);
+        });
+        homeBtnFullscreen.addEventListener("click", () => {
+            playSound(sfxSelect);
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+                document.exitFullscreen().catch(() => {});
+            }
+            toggleHomeMenu(false);
+        });
+        homeBtnWiiMenu.addEventListener("click", (e) => {
+            e.preventDefault();
+            playSound(sfxBack);
+            fadeBlack.classList.add("active");
+            setTimeout(() => {
+                window.location.href = "/";
+            }, 300);
+        });
+
+        // Raccourcis clavier Wii
+        window.addEventListener("keydown", (e) => {
+            if (e.key === "Escape" || e.key === "Home" || e.key === "h" || e.key === "H") {
+                if (bannerScreen.classList.contains("booting")) {
+                    toggleHomeMenu();
+                }
+            } else if (e.key === "f" || e.key === "F") {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(() => {});
+                } else {
+                    document.exitFullscreen().catch(() => {});
+                }
+            }
+        });
+
+        // ========================================================
+        // DÉMARRAGE DU VRAI MOTEUR D'ÉMULATION WII (DOLPHIN/GECKO)
+        // ========================================================
+        let emulatorStarted = false;
+        const DISC_STREAM_URL = "/cdn/shenron/games/budokai-tenkaichi-3-eu.rvz";
+
+        async function bootWiiGame() {
+            if (emulatorStarted) return;
+            emulatorStarted = true;
+
+            btnStart.disabled = true;
+            btnStart.style.opacity = "0.6";
+            discStatusText.textContent = "Démarrage en cours...";
+            discSpin.style.display = "block";
+
+            // Séquence sonore et transition authentique Wii
+            playSound(sfxSelect);
+            setTimeout(() => playSound(sfxStartup), 100);
+
+            fadeBlack.classList.add("active");
+
+            try {
+                // Initialisation du runtime WebAssembly Gecko
+                await init();
+
+                // Préparation du sous-système audio DSP Wii
+                try {
+                    prepare_audio();
+                } catch (audioErr) {
+                    console.warn("Audio:", audioErr);
+                }
+
+                // Montage et exécution de l'image disque
+                if (localDiscFile) {
+                    const isRvz = /\.rvz$/i.test(localDiscFile.name);
+                    const chunkBytes = 8 * 1024 * 1024; // 8 MiB
+                    if (isRvz) {
+                        begin_game_load(localDiscFile.name, localDiscFile.size);
+                        for (let offset = 0; offset < localDiscFile.size; offset += chunkBytes) {
+                            const end = Math.min(offset + chunkBytes, localDiscFile.size);
+                            const chunk = new Uint8Array(await localDiscFile.slice(offset, end).arrayBuffer());
+                            append_game_chunk(chunk);
+                        }
+                        start_loaded_game_with_ipl();
+                    } else {
+                        const fileBuf = new Uint8Array(await localDiscFile.arrayBuffer());
+                        start_emulator(fileBuf, localDiscFile.name);
+                    }
+
+                } else {
+                    // Gecko currently requires the entire RVZ in memory before boot.
+                    const response = await fetch(DISC_STREAM_URL);
+                    if (!response.ok || !response.body) throw new Error("Image disque indisponible");
+                    const length = Number(response.headers.get("content-length"));
+                    if (!Number.isSafeInteger(length) || length <= 0 || length > 0xffffffff) {
+                        throw new Error("Taille de l'image disque inconnue ou non prise en charge");
+                    }
+                    begin_game_load("budokai-tenkaichi-3-eu.rvz", length);
+                    const reader = response.body.getReader();
+                    let loaded = 0;
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+                        // Browser stream chunks have no fixed maximum size.
+                        for (let offset = 0; offset < value.byteLength; offset += 8 * 1024 * 1024) {
+                            append_game_chunk(value.subarray(offset, offset + 8 * 1024 * 1024));
+                        }
+                        loaded += value.byteLength;
+                        discStatusText.textContent = `Chargement du disque : ${Math.floor(loaded * 100 / length)} %`;
+                    }
+                    if (loaded !== length) throw new Error("Image disque incomplète");
+                    start_loaded_game_with_ipl();
+                }
+                bannerScreen.classList.add("booting");
+                homeTriggerBtn.style.display = "block";
+                fadeBlack.classList.remove("active");
+                canvas.focus();
+            } catch (err) {
+                try { cancel_game_load(); } catch (_) {}
+                console.error("Impossible de démarrer le disque Wii:", err);
+                emulatorStarted = false;
+                btnStart.disabled = false;
+                btnStart.style.opacity = "";
+                discSpin.style.display = "none";
+                discStatusText.textContent = `Impossible de démarrer le disque : ${err.message || err}`;
+                fadeBlack.classList.remove("active");
+            }
+        }
+
+        btnStart.addEventListener("click", bootWiiGame);
+
+        // Si l'URL contient ?autostart=1, démarrer directement
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get("autostart") === "1") {
+            window.addEventListener("click", () => {
+                if (!emulatorStarted) bootWiiGame();
+            }, { once: true });
+        }
+    </script>
+</body>
+</html>

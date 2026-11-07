@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "repositories": [
+    {
+      "name": "wii-os/src/dolphin",
+      "path": "src/dolphin",
+      "adapter": "cmake-source-snapshot",
+      "role": "Moteur d'exécution matériel Nintendo Wii (Broadway, Hollywood, GX, DSP)"
+    },
+    {
+      "name": "wii-os/crates/gecko-core",
+      "path": "crates/gecko-core",
+      "adapter": "cargo-workspace-snapshot",
+      "role": "Noyau Broadway PPC 750CL & pipeline graphique moderne WebGPU/D3D12/Vulkan"
+    },
+    {
+      "name": "wii-os/sources/wii-ipl",
+      "path": "sources/wii-ipl",
+      "adapter": "c-cpp-decompiled-source",
+      "role": "Code source officiel décompilé du Menu Système Wii 4.3 (BS2, CHAN VM, HOME Button, Audio)"
+    },
+    {
+      "name": "wii-os/sources/wadlib",
+      "path": "sources/wadlib",
+      "adapter": "go-crypto-wad-toolkit",
+      "role": "Gestionnaire cryptographique WAD, TMD, Ticket et Certificats Nintendo"
+    },
+    {
+      "name": "wii-os/sources/wfc-server",
+      "path": "sources/wfc-server",
+      "adapter": "go-network-wfc-suite",
+      "role": "Protocoles réseau officiels Nintendo Wi-Fi Connection (NAS, DWC, GameSpy, NATNEG, Sake)"
+    },
+    {
+      "name": "wii-os/sources/room-server",
+      "path": "sources/room-server",
+      "adapter": "network-room-server",
+      "role": "Serveur de salons multijoueur NetPlay temps réel et invitations"
+    },
+    {
+      "name": "wii-os/sources/decomp-toolkit",
+      "path": "sources/decomp-toolkit",
+      "adapter": "reverse-engineering-toolkit",
+      "role": "Outils d'analyse binaire DOL / REL, cartographie symbolique et rétro-ingénierie"
+    },
+    {
+      "name": "wii-os/sources/wiimms-iso-tools",
+      "path": "sources/wiimms-iso-tools",
+      "adapter": "c-disc-format-toolkit",
+      "role": "Outils de manipulation de disques optiques Wii (ISO, WBFS, WDF, FST, WIA)"
+    },
+    {
+      "name": "wii-os/sources/Wii.JS",
+      "path": "sources/Wii.JS",
+      "adapter": "web-system-menu-assets",
+      "role": "Assets graphiques, sons authentiques Frutiger Aero et gabarits de chaînes Wii"
+    },
+    {
+      "name": "wii-os/sources/WiiUDownloader",
+      "path": "sources/WiiUDownloader",
+      "adapter": "nus-cdn-client",
+      "role": "Client de téléchargement et déciffrement de chaînes et titres Wii / vWii via serveurs NUS"
+    },
+    {
+      "name": "wii-os/sources/wii-examples",
+      "path": "sources/wii-examples",
+      "adapter": "c-hardware-reference-examples",
+      "role": "Exemples et implémentations de référence matériel (Audio DSP, GX 3D, FileSystem, Threading)"
+    },
+    {
+      "name": "wii-os/sources/smithay",
+      "path": "sources/smithay",
+      "adapter": "wayland-compositor-library",
+      "role": "Briques du compositeur d'affichage Wayland cross-platform pour Linux et bureau moderne"
+    },
+    {
+      "name": "wii-os/sources/wayland-rs",
+      "path": "sources/wayland-rs",
+      "adapter": "wayland-protocol-bindings",
+      "role": "Protocoles de fenêtrage Wayland haute performance client et serveur"
+    },
+    {
+      "name": "wii-os/sources/komorebi",
+      "path": "sources/komorebi",
+      "adapter": "window-manager-engine",
+      "role": "Gestionnaire de fenêtres multi-écrans et organisation des affichages sous Windows"
+    },
+    {
+      "name": "wii-os/sources/yasb",
+      "path": "sources/yasb",
+      "adapter": "system-bar-ui",
+      "role": "Composants de barre d'état et d'interface système permanente"
+    },
+    {
+      "name": "wii-os/sources/Wii-Rom-Downloader",
+      "path": "sources/Wii-Rom-Downloader",
+      "adapter": "rom-database-catalog",
+      "role": "Catalogue et identifiants officiels des titres Wii et GameCube"
+    }
+  ]
+}

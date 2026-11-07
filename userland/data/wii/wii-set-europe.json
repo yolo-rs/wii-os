@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "platform": "Wii",
+  "market": "Europe/PAL",
+  "systemMenu": "4.3E",
+  "files": [
+    {
+      "role": "system-menu",
+      "path": "wii-os/userland/data/wii/wads/System Software/SystemMenu-v514.wad",
+      "titleId": "0000000100000002",
+      "region": "PAL/EUR",
+      "version": 514,
+      "bytes": 23801856,
+      "sha256": "acca9021cce25e564ca01a44052234b8bf022e49ef706f4a9984612dc52a09f0"
+    },
+    {
+      "role": "ios80",
+      "path": "wii-os/userland/data/wii/wads/System Software/IOS80-64-v6944.wad",
+      "titleId": "0000000100000050",
+      "region": "shared IOS",
+      "version": 6944,
+      "bytes": 1959232,
+      "sha256": "08b062daca97b72d32ae91db5be2b0a54a4eff5528e543356975d05983431e96"
+    },
+    {
+      "role": "ios58",
+      "path": "wii-os/userland/data/wii/wads/System Software/IOS58-64-v6176.wad",
+      "titleId": "000000010000003A",
+      "region": "shared IOS",
+      "version": 6176,
+      "bytes": 1991680,
+      "sha256": "81e1859dc02663a82e6b20a30b677f9eca125785360b7cec1d8212884195a897"
+    },
+    {
+      "role": "mii-channel",
+      "path": "wii-os/userland/data/wii/wads/Official Channels/Mii Channel v6 HACA.wad",
+      "titleId": "0001000248414341",
+      "region": "PAL/EUR",
+      "version": 6,
+      "bytes": 8188736,
+      "sha256": "7b59373445c71c8046ee082255d757afc7ffc2ab992ef2788da30d05c716f0d9"
+    },
+    {
+      "role": "shop-channel",
+      "path": "wii-os/userland/data/wii/wads/Official Channels/Shop Channel v17 HABA.wad",
+      "titleId": "0001000248414241",
+      "region": "PAL/EUR",
+      "version": 17,
+      "bytes": 25571712,
+      "sha256": "77cc838c73a4a7c37eeef65c958b9dd6c51db64f925e19c6d625030d7fb65c2c"
+    },
+    {
+      "role": "homebrew-browser",
+      "path": "wii-os/userland/data/wii/brew/apps/homebrew-browser/boot.dol",
+      "titleId": null,
+      "region": "region-free homebrew DOL",
+      "version": "0.3.9e",
+      "bytes": 2092896,
+      "sha256": "042b5f40c691cb184c96e6ac7ece35f294d13b6897dc93764aaae7f1bbc47ab5"
+    }
+  ]
+}

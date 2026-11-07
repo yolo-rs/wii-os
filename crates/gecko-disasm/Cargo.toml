@@ -1,0 +1,10 @@
+[package]
+name = "disasm"
+version = "0.1.0"
+license = "GPL-3.0-only"
+edition = "2024"
+
+[build-dependencies]
+chipi-build = "0.9.1"
+
+

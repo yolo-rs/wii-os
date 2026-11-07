@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "inputs": [
+    {
+      "id": "replace-with-your-own-fixture",
+      "path": "./authorized-disc-image.iso",
+      "sha256": "",
+      "region": "USA",
+      "titleId": "",
+      "source": "operator-provided",
+      "license": "operator-declared",
+      "allowedUse": false
+    }
+  ]
+}

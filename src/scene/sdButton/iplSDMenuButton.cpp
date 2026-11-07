@@ -1,0 +1,315 @@
+#include "scene/button/iplButton.h"
+
+#include "iplSceneUI.h"
+
+#include "iplSystem.h"
+
+namespace ipl {
+    namespace scene {
+        // clang-format off
+        const char* SDMenuButton::smButtonName[] = {
+            "Ac",
+        };
+
+        static const u32 scBalloonMsg[] = {
+            161,
+        };
+
+        // clang-format on
+
+        SDMenuButton::SDMenuButton() : mpLayout(NULL), mpGui(NULL), mbHovered(), mbEnabled(true) {
+        }
+
+        SDMenuButton::~SDMenuButton() {
+        }
+
+        DECOMP_FORCE_LITERAL(iplSDMenuButton_cpp, -152.0f);
+
+        void SDMenuButton::create(nand::LayoutFile* layoutFile, nand::LayoutFile* balloonFile, EGG::Heap* heap) {
+            mpLayout = new layout::Object(heap, layoutFile, "arc", "mn_Sdcard_Btn.brlyt");
+            mpLayout->bindToGroup("mn_Sdcard_Btn_On_Roop.brlan", "On_Roop", false);
+            mpLayout->bindToGroup("mn_Sdcard_Btn_BtnL_In.brlan", "Btn_L_InOut", false);
+            mpLayout->bindToGroup("mn_Sdcard_Btn_BtnL_Out.brlan", "Btn_L_InOut", false);
+            mpLayout->bindToGroup("mn_Sdcard_Btn_Insert.brlan", "Insert", false);
+            mpLayout->bindToGroup("mn_Sdcard_Btn_BtnL_On.brlan", "Btn_L_On", false);
+            mpLayout->bindToGroup("mn_Sdcard_Btn_BtnL_RollOver.brlan", "Btn_L_Roll", false);
+            mpLayout->bindToGroup("mn_Sdcard_Btn_BtnL_RollOut.brlan", "Btn_L_Roll", false);
+            mpLayout->getAnim(ANIM_BTN_ROLL_OVER)->initAnmFrame();
+            mpLayout->finishBinding();
+            mpLayout->getAnim(ANIM_ON_LOOP)->initAnmFrame();
+            mpLayout->getAnim(ANIM_ON_LOOP)->play();
+
+            mpGui = new gui::PaneManager(NULL, mpLayout->getDrawInfo(), NULL, NULL);
+            mpGui->setupScene(mpLayout);
+            mpGui->setAllComponentTriggerTarget(false);
+            mpGui->setTriggerTarget(mpLayout->FindPaneByName(smButtonName[0]), true);
+
+            mpLayout->hide("N_Btn_On");
+            mpLayout->show("N_Btn_Off");
+
+            f32 posX;
+            if (SCGetAspectRatio() == SC_ASPECT_RATIO_16x9) {
+                posX = -245.0f;
+            } else {
+                posX = -152.0f;
+            }
+
+            nw4r::math::VEC3 newPos;
+            newPos.x = posX;
+            newPos.y = -172.0f;
+            mpLayout->GetRootPane()->SetTranslate(newPos);
+
+            for (int i = 0; i < BTN_MAX; i++) {
+                mpBalloons[i] = new TextBalloon(heap, balloonFile, "arc", "my_IplTopBalloon_a.brlyt", math::VEC3(0.0f, 0.0f, 0.0f), 200.0f, 110.0f);
+                mpBalloons[i]->init(System::getMessage(scBalloonMsg[i]), 0);
+                mpBalloons[i]->init_textbox();
+            }
+        }
+
+        void SDMenuButton::calc() {
+            mpLayout->calc();
+            mpGui->calc();
+            for (int i = 0; i < BTN_MAX; i++) {
+                mpBalloons[i]->calc();
+            }
+        }
+
+        void SDMenuButton::draw() {
+            mpLayout->draw();
+        }
+
+        void SDMenuButton::drawBalloon() {
+            layout::Object::setCamera();
+            for (int i = 0; i < BTN_MAX; i++) {
+                mpBalloons[i]->draw();
+            }
+        }
+
+        void SDMenuButton::update() {
+            mpGui->update();
+        }
+
+        void SDMenuButton::initGui() {
+            for (int i = 0; i < BTN_MAX; i++) {
+                if (mbHovered[i]) {
+                    mbHovered[i] = FALSE;
+                }
+            }
+            mpGui->init();
+        }
+
+        void SDMenuButton::startPointEvent(const char* paneName, controller::Interface* con) {
+            int btnNo = getButtonNo(paneName);
+            if (btnNo != -1 && mbEnabled) {
+                if (!mbHovered[btnNo]) {
+                    layout::Animator* anim = NULL;
+                    switch (btnNo) {
+                        case BTN_SD_CARD: {
+                            anim = mpLayout->getAnim(ANIM_BTN_ROLL_OVER);
+                            break;
+                        }
+                        default: {
+                            break;
+                        }
+                    }
+
+                    if (anim != NULL) {
+                        anim->initAnmFrame();
+                        anim->setAnmType(ANIM_TYPE_FORWARD);
+                        anim->play();
+                    }
+
+                    show_balloon(btnNo, paneName);
+                    snd::getSystem()->startSE("WIPL_SE_BT_TARGETTING");
+                    if (con) {
+                        con->rumble();
+                    }
+                }
+
+                if (mbHovered[btnNo] < 4 /*???*/) {
+                    mbHovered[btnNo]++;
+                }
+            }
+        }
+
+        void SDMenuButton::startLeftEvent(const char* paneName) {
+            int btnNo = getButtonNo(paneName);
+            if (btnNo != -1 && mbEnabled) {
+                layout::Animator* anim = NULL;
+                if (mbHovered[btnNo] == TRUE) {
+                    switch (btnNo) {
+                        case 0: {
+                            anim = mpLayout->getAnim(ANIM_BTN_ROLL_OUT);
+                            break;
+                        }
+                        default: {
+                            break;
+                        }
+                    }
+
+                    if (btnNo < BTN_MAX) {
+                        mpBalloons[btnNo]->fadeoutForce();
+                    }
+                }
+
+                if (anim != NULL) {
+                    anim->initAnmFrame();
+                    anim->setAnmType(ANIM_TYPE_FORWARD);
+                    anim->play();
+                }
+
+                if (mbHovered[btnNo] > 0) {
+                    mbHovered[btnNo]--;
+                }
+            }
+        }
+
+        void SDMenuButton::setEventHandler(::gui::EventHandler* event) {
+            mpGui->setEventHandler(event);
+        }
+
+        void SDMenuButton::animation(int animId) {
+            SDMenuButton* button = this;
+            layout::Animator* anim = NULL;
+            bool backwards = false;
+            switch (animId) {
+                case 1: {
+                    anim = button->mpLayout->getAnim(ANIM_BTN_OUT);
+                    backwards = true;
+                    anim->setMinFrame(0.0f);
+                    anim->setMaxFrame(15.0f);
+                    break;
+                }
+                case 2: {
+                    button->mpBalloons[BTN_SD_CARD]->fadeoutForce();
+                    button->initGui();
+                    if (button->mpLayout->isPlaying(ANIM_BTN_OUT)) {
+                        f32 frame = button->mpLayout->getAnim(ANIM_BTN_OUT)->getCurrentFrame();
+                        button->mpLayout->getAnim(ANIM_BTN_OUT)->stop();
+
+                        if (frame > 0.0f) {
+                            frame = static_cast<u32>(frame);
+                            anim = button->mpLayout->getAnim(ANIM_BTN_OUT);
+                            anim->setMinFrame(frame);
+                            anim->setMaxFrame(15.0f);
+                        }
+                    } else {
+                        anim = button->mpLayout->getAnim(ANIM_BTN_OUT);
+                        anim->setMinFrame(0.0f);
+                        anim->setMaxFrame(15.0f);
+                    }
+                    break;
+                }
+                case 3: {
+                    anim = button->mpLayout->getAnim(ANIM_BTN_INSERT);
+                    break;
+                }
+                case 4: {
+                    anim = button->mpLayout->getAnim(ANIM_BTN_SELECT);
+                    break;
+                }
+            }
+
+            if (anim != NULL) {
+                anim->initAnmFrame();
+                if (backwards) {
+                    anim->setAnmType(ANIM_TYPE_BACKWARD);
+                } else {
+                    anim->setAnmType(ANIM_TYPE_FORWARD);
+                }
+                anim->play();
+            }
+        }
+
+        int SDMenuButton::getButtonNo(const char* paneName) {
+            int num = -1;
+            for (int i = 0; i < BTN_MAX; i++) {
+                if (strcmp(paneName, smButtonName[i]) == 0) {
+                    num = i;
+                    break;
+                }
+            }
+            return num;
+        }
+
+        void SDMenuButton::enableBtn() {
+            mbEnabled = true;
+
+            for (int i = 0; i < BTN_MAX; i++) {
+                if (mbHovered[i]) {
+                    mbHovered[i] = FALSE;
+
+                    switch (i) {
+                        case BTN_SD_CARD: {  // Play hover out animation
+                            layout::Animator* anim = mpLayout->getAnim(ANIM_BTN_ROLL_OUT);
+                            anim->play();
+                            break;
+                        }
+                    }
+                }
+
+                // Init button pane
+                mpGui->initPane(mpLayout->FindPaneByName(smButtonName[i]));
+            }
+        }
+
+        void SDMenuButton::disableBtn() {
+            for (int i = 0; i < BTN_MAX; i++) {
+                mpBalloons[i]->fadeoutForce();
+            }
+            mbEnabled = false;
+        }
+
+        void SDMenuButton::toggle_insert(BOOL bInserted) {
+            if (bInserted) {
+                mpLayout->setVisible("N_Btn_On", true);
+                mpLayout->setVisible("N_Btn_Off", false);
+            } else {
+                mpLayout->setVisible("N_Btn_On", false);
+                mpLayout->setVisible("N_Btn_Off", true);
+
+                // Force stop the insert animation.
+                if (mpLayout->isPlaying(ANIM_BTN_INSERT)) {
+                    mpLayout->getAnim(ANIM_BTN_INSERT)->stop();
+                    mpLayout->getAnim(ANIM_BTN_INSERT)->initAnmFrame();
+                }
+            }
+        }
+
+        void SDMenuButton::show_balloon(int balloonId, const char* targetPaneName) {
+            if (balloonId < BTN_MAX) {
+                nw4r::lyt::Pane* pane = mpLayout->FindPaneByName(targetPaneName);
+                math::VEC3 pos(0.0f, 0.0f, 0.0f);
+
+                math::VEC3Transform(&pos, &pane->GetGlobalMtx(), &pos);
+                pos.y += 50.0f;
+
+                mpBalloons[balloonId]->setPos(pos, true, 0);
+                mpBalloons[balloonId]->fadeinNoSetTextbox();
+            }
+        }
+
+        void SDMenuEventHandlerBase::onEvent(u32 compId, u32 event, void* data) {
+            gui::PaneComponent* component = static_cast<gui::PaneComponent*>(mpManager->getComponent(compId));
+            const char* paneName = component->getPane()->GetName();
+
+            SDMenuButton* sdMenuButton = static_cast<Button*>(System::getScene(SCENE_BUTTON))->get_sd_menu_btn();
+
+            switch (event) {
+                case ON_POINT: {
+                    sdMenuButton->startPointEvent(paneName, static_cast<controller::Interface*>(data));
+                    break;
+                }
+                case ON_LEFT: {
+                    sdMenuButton->startLeftEvent(paneName);
+                    break;
+                }
+            }
+
+            onEventDerived(compId, event, static_cast<controller::Interface*>(data));
+        }
+
+        void SDMenuEventHandlerBase::onEventDerived(u32 compId, u32 event, const controller::Interface* con) {
+        }
+    }  // namespace scene
+}  // namespace ipl

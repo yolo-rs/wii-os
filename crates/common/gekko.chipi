@@ -1,0 +1,921 @@
+# Gekko (PowerPC 750) - Nintendo GameCube CPU
+# 32-bit opcodes, MSB0 bit ordering
+
+decoder Gekko {
+    width = 32
+    bit_order = msb0
+    endian = big
+}
+
+type gpr = u8
+type fpr = u8
+type uimm = u16 { display(hex) }
+type simm12 = i32 { sign_extend(12), display(signed_hex) }
+type simm16 = i32 { sign_extend(16), display(signed_hex) }
+type simm24 = i32 { sign_extend(24), shift_left(2), display(signed_hex) }
+type disp = i32 { sign_extend(16), display(signed_hex) }
+type branch_disp = i32 { sign_extend(14), shift_left(2), display(signed_hex) }
+
+map bc_cond_true(cond_bit) {
+    0 => "lt"
+    1 => "gt"
+    2 => "eq"
+    3 => "so"
+}
+
+map bc_cond_false(cond_bit) {
+    0 => "ge"
+    1 => "le"
+    2 => "ne"
+    3 => "ns"
+}
+
+map bc_cr_prefix(cr_num) {
+    0 => ""
+    _ => "cr{cr_num}, "
+}
+
+map bc_hint(y) {
+    0 => ""
+    _ => "+"
+}
+
+map bclr_cr(cr_num) {
+    0 => ""
+    _ => " cr{cr_num}"
+}
+
+map spr_name(spr) {
+    1 => "xer"
+    8 => "lr"
+    9 => "ctr"
+    18 => "dsisr"
+    19 => "dar"
+    22 => "dec"
+    25 => "sdr1"
+    26 => "srr0"
+    27 => "srr1"
+    272 => "sprg0"
+    273 => "sprg1"
+    274 => "sprg2"
+    275 => "sprg3"
+    268 => "tbl"
+    269 => "tbu"
+    282 => "ear"
+    284 => "tbl"
+    285 => "tbu"
+    287 => "pvr"
+    528 => "ibat0u"
+    529 => "ibat0l"
+    530 => "ibat1u"
+    531 => "ibat1l"
+    532 => "ibat2u"
+    533 => "ibat2l"
+    534 => "ibat3u"
+    535 => "ibat3l"
+    536 => "dbat0u"
+    537 => "dbat0l"
+    538 => "dbat1u"
+    539 => "dbat1l"
+    540 => "dbat2u"
+    541 => "dbat2l"
+    542 => "dbat3u"
+    543 => "dbat3l"
+    912 => "gqr0"
+    913 => "gqr1"
+    914 => "gqr2"
+    915 => "gqr3"
+    916 => "gqr4"
+    917 => "gqr5"
+    918 => "gqr6"
+    919 => "gqr7"
+    920 => "hid2"
+    921 => "wpar"
+    922 => "dmau"
+    923 => "dmal"
+    936 => "ummcr0"
+    937 => "upmc1"
+    938 => "upmc2"
+    939 => "usia"
+    940 => "ummcr1"
+    941 => "upmc3"
+    942 => "upmc4"
+    943 => "usda"
+    952 => "mmcr0"
+    953 => "pmc1"
+    954 => "pmc2"
+    955 => "sia"
+    956 => "mmcr1"
+    957 => "pmc3"
+    958 => "pmc4"
+    959 => "sda"
+    1008 => "hid0"
+    1009 => "hid1"
+    1010 => "iabr"
+    1013 => "dabr"
+    1017 => "l2cr"
+    1019 => "ictc"
+    1020 => "thrm1"
+    1021 => "thrm2"
+    1022 => "thrm3"
+    _ => "{spr}"
+}
+
+# ============================================================
+# Primary opcode 3: twi (Trap Word Immediate)
+# ============================================================
+twi         [0:5]=000011 to:u5[6:10] ra:gpr[11:15] simm:simm16[16:31]
+            | "twi {to}, {ra}, {simm}"
+
+# ============================================================
+# Primary opcode 4: Paired Single
+# ============================================================
+
+# PS Compare - X-form
+ps_cmpu0    [0:5]=000100 crfd:u3[6:8] [9:10]=00 fa:fpr[11:15] fb:fpr[16:20] [21:30]=0000000000 [31]=0
+            | "ps_cmpu0 cr{crfd}, {fa}, {fb}"
+
+ps_cmpo0    [0:5]=000100 crfd:u3[6:8] [9:10]=00 fa:fpr[11:15] fb:fpr[16:20] [21:30]=0000100000 [31]=0
+            | "ps_cmpo0 cr{crfd}, {fa}, {fb}"
+
+ps_cmpu1    [0:5]=000100 crfd:u3[6:8] [9:10]=00 fa:fpr[11:15] fb:fpr[16:20] [21:30]=0001000000 [31]=0
+            | "ps_cmpu1 cr{crfd}, {fa}, {fb}"
+
+ps_cmpo1    [0:5]=000100 crfd:u3[6:8] [9:10]=00 fa:fpr[11:15] fb:fpr[16:20] [21:30]=0001100000 [31]=0
+            | "ps_cmpo1 cr{crfd}, {fa}, {fb}"
+
+# PS Unary/Move - X-form ([11:15]=00000)
+ps_res      [0:5]=000100 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:30]=0000011000 rc:bool[31]
+            | "ps_res{rc ? .} {fd}, {fb}"
+
+ps_rsqrte   [0:5]=000100 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:30]=0000011010 rc:bool[31]
+            | "ps_rsqrte{rc ? .} {fd}, {fb}"
+
+ps_neg      [0:5]=000100 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:30]=0000101000 rc:bool[31]
+            | "ps_neg{rc ? .} {fd}, {fb}"
+
+ps_mr       [0:5]=000100 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:30]=0001001000 rc:bool[31]
+            | "ps_mr{rc ? .} {fd}, {fb}"
+
+ps_nabs     [0:5]=000100 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:30]=0010001000 rc:bool[31]
+            | "ps_nabs{rc ? .} {fd}, {fb}"
+
+ps_abs      [0:5]=000100 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:30]=0100001000 rc:bool[31]
+            | "ps_abs{rc ? .} {fd}, {fb}"
+
+# PS Merge - X-form
+ps_merge00  [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] [21:30]=1000010000 rc:bool[31]
+            | "ps_merge00{rc ? .} {fd}, {fa}, {fb}"
+
+ps_merge01  [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] [21:30]=1000110000 rc:bool[31]
+            | "ps_merge01{rc ? .} {fd}, {fa}, {fb}"
+
+ps_merge10  [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] [21:30]=1001010000 rc:bool[31]
+            | "ps_merge10{rc ? .} {fd}, {fa}, {fb}"
+
+ps_merge11  [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] [21:30]=1001110000 rc:bool[31]
+            | "ps_merge11{rc ? .} {fd}, {fa}, {fb}"
+
+# Quantized Load/Store - X-form
+psq_lx      [0:5]=000100 fd:fpr[6:10] ra:gpr[11:15] rb:gpr[16:20] w:bool[21] i:u3[22:24] [25:30]=000110 [31]=0
+            | "psq_lx {fd}, {ra}, {rb}, {w}, {i}"
+
+psq_stx     [0:5]=000100 fs:fpr[6:10] ra:gpr[11:15] rb:gpr[16:20] w:bool[21] i:u3[22:24] [25:30]=000111 [31]=0
+            | "psq_stx {fs}, {ra}, {rb}, {w}, {i}"
+
+psq_lux     [0:5]=000100 fd:fpr[6:10] ra:gpr[11:15] rb:gpr[16:20] w:bool[21] i:u3[22:24] [25:30]=100110 [31]=0
+            | "psq_lux {fd}, {ra}, {rb}, {w}, {i}"
+
+psq_stux    [0:5]=000100 fs:fpr[6:10] ra:gpr[11:15] rb:gpr[16:20] w:bool[21] i:u3[22:24] [25:30]=100111 [31]=0
+            | "psq_stux {fs}, {ra}, {rb}, {w}, {i}"
+
+# PS Arithmetic - A-form (5-bit XO at [26:30])
+ps_sum0     [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=01010 rc:bool[31]
+            | "ps_sum0{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+ps_sum1     [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=01011 rc:bool[31]
+            | "ps_sum1{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+ps_muls0    [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] [16:20]=00000 fc:fpr[21:25] [26:30]=01100 rc:bool[31]
+            | "ps_muls0{rc ? .} {fd}, {fa}, {fc}"
+
+ps_muls1    [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] [16:20]=00000 fc:fpr[21:25] [26:30]=01101 rc:bool[31]
+            | "ps_muls1{rc ? .} {fd}, {fa}, {fc}"
+
+ps_madds0   [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=01110 rc:bool[31]
+            | "ps_madds0{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+ps_madds1   [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=01111 rc:bool[31]
+            | "ps_madds1{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+ps_div      [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] [21:25]=00000 [26:30]=10010 rc:bool[31]
+            | "ps_div{rc ? .} {fd}, {fa}, {fb}"
+
+ps_sub      [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] [21:25]=00000 [26:30]=10100 rc:bool[31]
+            | "ps_sub{rc ? .} {fd}, {fa}, {fb}"
+
+ps_add      [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] [21:25]=00000 [26:30]=10101 rc:bool[31]
+            | "ps_add{rc ? .} {fd}, {fa}, {fb}"
+
+ps_sel      [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=10111 rc:bool[31]
+            | "ps_sel{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+ps_mul      [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] [16:20]=00000 fc:fpr[21:25] [26:30]=11001 rc:bool[31]
+            | "ps_mul{rc ? .} {fd}, {fa}, {fc}"
+
+ps_msub     [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=11100 rc:bool[31]
+            | "ps_msub{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+ps_madd     [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=11101 rc:bool[31]
+            | "ps_madd{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+ps_nmsub    [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=11110 rc:bool[31]
+            | "ps_nmsub{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+ps_nmadd    [0:5]=000100 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=11111 rc:bool[31]
+            | "ps_nmadd{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+# Locked Cache Instruction
+dcbz_l      [0:5]=000100 [6:10]=00000 ra:gpr[11:15] rb:gpr[16:20] [21:30]=1111110110 [31]=0
+            | "dcbz_l {ra}, {rb}"
+
+# ============================================================
+# Primary opcode 7: mulli
+# ============================================================
+mulli       [0:5]=000111 rd:gpr[6:10] ra:gpr[11:15] simm:simm16[16:31]
+            | "mulli {rd}, {ra}, {simm}"
+
+# ============================================================
+# Primary opcode 8: subfic
+# ============================================================
+subfic      [0:5]=001000 rd:gpr[6:10] ra:gpr[11:15] simm:simm16[16:31]
+            | "subfic {rd}, {ra}, {simm}"
+
+# ============================================================
+# Primary opcodes 10-15: Compare/Arithmetic D-form
+# ============================================================
+cmpli       [0:5]=001010 crfd:u3[6:8] [9]=0 l:bool[10] ra:gpr[11:15] uimm:uimm[16:31]
+            | l == 0, crfd == 0 : "cmplwi {ra}, {uimm}"
+            | l == 0            : "cmplwi cr{crfd}, {ra}, {uimm}"
+            | "cmpli {crfd}, {l}, {ra}, {uimm}"
+
+cmpi        [0:5]=001011 crfd:u3[6:8] [9]=0 l:bool[10] ra:gpr[11:15] simm:simm16[16:31]
+            | l == 0, crfd == 0 : "cmpwi {ra}, {simm}"
+            | l == 0            : "cmpwi cr{crfd}, {ra}, {simm}"
+            | "cmpi {crfd}, {l}, {ra}, {simm}"
+
+addic       [0:5]=001100 rd:gpr[6:10] ra:gpr[11:15] simm:simm16[16:31]
+            | simm < 0 : "subic {rd}, {ra}, {-simm}"
+            | "addic {rd}, {ra}, {simm}"
+
+addic_dot   [0:5]=001101 rd:gpr[6:10] ra:gpr[11:15] simm:simm16[16:31]
+            | simm < 0 : "subic. {rd}, {ra}, {-simm}"
+            | "addic. {rd}, {ra}, {simm}"
+
+addi        [0:5]=001110 rd:gpr[6:10] ra:gpr[11:15] simm:simm16[16:31]
+            | ra == 0  : "li {rd}, {simm}"
+            | simm < 0 : "subi {rd}, {ra}, {-simm}"
+            | "addi {rd}, {ra}, {simm}"
+
+addis       [0:5]=001111 rd:gpr[6:10] ra:gpr[11:15] simm:simm16[16:31]
+            | ra == 0  : "lis {rd}, {simm}"
+            | simm < 0 : "subis {rd}, {ra}, {-simm}"
+            | "addis {rd}, {ra}, {simm}"
+
+# ============================================================
+# Primary opcode 16: bcx (Branch Conditional)
+# ============================================================
+bcx         [0:5]=010000 bo:u5[6:10] bi:u5[11:15] bd:branch_disp[16:29] aa:bool[30] lk:bool[31]
+            | bo >= 12, bo <= 15 : "b{bc_cond_true(bi % 4)}{bc_hint(bo % 2)}{lk ? l}{aa ? a} {bc_cr_prefix(bi / 4)}{bd}"
+            | bo >= 4 , bo <= 7  : "b{bc_cond_false(bi % 4)}{bc_hint(bo % 2)}{lk ? l}{aa ? a} {bc_cr_prefix(bi / 4)}{bd}"
+            | bo >= 16, bo <= 17 : "bdnz{bc_hint(bo % 2)}{lk ? l}{aa ? a} {bd}"
+            | bo >= 18, bo <= 19 : "bdz{bc_hint(bo % 2)}{lk ? l}{aa ? a} {bd}"
+            | "bc{lk ? l}{aa ? a} {bo}, {bi}, {bd}"
+
+# ============================================================
+# Primary opcode 17: sc (System Call)
+# ============================================================
+sc          [0:5]=010001 [6:29]=000000000000000000000000 [30]=1 [31]=0
+
+# ============================================================
+# Primary opcode 18: bx (Branch)
+# ============================================================
+bx          [0:5]=010010 li:simm24[6:29] aa:bool[30] lk:bool[31]
+            | "b{lk ? l}{aa ? a} {li}"
+
+# ============================================================
+# Primary opcode 19: XL-form (Branch to LR/CTR, CR ops, etc.)
+# ============================================================
+mcrf        [0:5]=010011 crfd:u3[6:8] [9:10]=00 crfs:u3[11:13] [14:20]=0000000 [21:30]=0000000000 [31]=0
+            | "mcrf cr{crfd}, cr{crfs}"
+
+bclrx       [0:5]=010011 bo:u5[6:10] bi:u5[11:15] [16:20]=00000 [21:30]=0000010000 lk:bool[31]
+            | bo == 20, bi == 0  : "blr{lk ? l}"
+            | bo >= 12, bo <= 15 : "b{bc_cond_true(bi % 4)}lr{bc_hint(bo % 2)}{lk ? l}{bclr_cr(bi / 4)}"
+            | bo >= 4 , bo <= 7  : "b{bc_cond_false(bi % 4)}lr{bc_hint(bo % 2)}{lk ? l}{bclr_cr(bi / 4)}"
+            | bo >= 16, bo <= 17 : "bdnzlr{bc_hint(bo % 2)}{lk ? l}"
+            | bo >= 18, bo <= 19 : "bdzlr{bc_hint(bo % 2)}{lk ? l}"
+            | "bclr{lk ? l} {bo}, {bi}"
+
+crnor       [0:5]=010011 crbd:u5[6:10] crba:u5[11:15] crbb:u5[16:20] [21:30]=0000100001 [31]=0
+            | crba == crbb : "crnot {crbd}, {crba}"
+            | "crnor {crbd}, {crba}, {crbb}"
+
+rfi         [0:5]=010011 [6:10]=00000 [11:15]=00000 [16:20]=00000 [21:30]=0000110010 [31]=0
+
+crandc      [0:5]=010011 crbd:u5[6:10] crba:u5[11:15] crbb:u5[16:20] [21:30]=0010000001 [31]=0
+            | "crandc {crbd}, {crba}, {crbb}"
+
+isync       [0:5]=010011 [6:10]=00000 [11:15]=00000 [16:20]=00000 [21:30]=0010010110 [31]=0
+
+crxor       [0:5]=010011 crbd:u5[6:10] crba:u5[11:15] crbb:u5[16:20] [21:30]=0011000001 [31]=0
+            | crbd == crba, crba == crbb : "crclr {crbd}"
+            | "crxor {crbd}, {crba}, {crbb}"
+
+crnand      [0:5]=010011 crbd:u5[6:10] crba:u5[11:15] crbb:u5[16:20] [21:30]=0011100001 [31]=0
+            | "crnand {crbd}, {crba}, {crbb}"
+
+crand       [0:5]=010011 crbd:u5[6:10] crba:u5[11:15] crbb:u5[16:20] [21:30]=0100000001 [31]=0
+            | "crand {crbd}, {crba}, {crbb}"
+
+creqv       [0:5]=010011 crbd:u5[6:10] crba:u5[11:15] crbb:u5[16:20] [21:30]=0100100001 [31]=0
+            | crbd == crba, crba == crbb : "crset {crbd}"
+            | "creqv {crbd}, {crba}, {crbb}"
+
+crorc       [0:5]=010011 crbd:u5[6:10] crba:u5[11:15] crbb:u5[16:20] [21:30]=0110100001 [31]=0
+            | "crorc {crbd}, {crba}, {crbb}"
+
+cror        [0:5]=010011 crbd:u5[6:10] crba:u5[11:15] crbb:u5[16:20] [21:30]=0111000001 [31]=0
+            | crba == crbb : "crmove {crbd}, {crba}"
+            | "cror {crbd}, {crba}, {crbb}"
+
+bcctrx      [0:5]=010011 bo:u5[6:10] bi:u5[11:15] [16:20]=00000 [21:30]=1000010000 lk:bool[31]
+            | bo == 20, bi == 0  : "bctr{lk ? l}"
+            | bo >= 12, bo <= 15 : "b{bc_cond_true(bi % 4)}ctr{bc_hint(bo % 2)}{lk ? l}{bclr_cr(bi / 4)}"
+            | bo >= 4 , bo <= 7  : "b{bc_cond_false(bi % 4)}ctr{bc_hint(bo % 2)}{lk ? l}{bclr_cr(bi / 4)}"
+            | "bcctr{lk ? l} {bo}, {bi}"
+
+# ============================================================
+# Primary opcodes 20-21, 23: Rotate M-form
+# ============================================================
+rlwimix     [0:5]=010100 rs:gpr[6:10] ra:gpr[11:15] sh:u5[16:20] mb:u5[21:25] me:u5[26:30] rc:bool[31]
+            | sh == 32 - mb, me >= mb : "inslwi{rc ? .} {ra}, {rs}, {me - mb + 1}, {mb}"
+            | sh == 31 - me, me >= mb : "insrwi{rc ? .} {ra}, {rs}, {me - mb + 1}, {mb}"
+            | "rlwimi{rc ? .} {ra}, {rs}, {sh}, {mb}, {me}"
+
+rlwinmx     [0:5]=010101 rs:gpr[6:10] ra:gpr[11:15] sh:u5[16:20] mb:u5[21:25] me:u5[26:30] rc:bool[31]
+            | mb == 0 , me == 31      : "rotlwi{rc ? .} {ra}, {rs}, {sh}"
+            | mb == 0 , me == 31 - sh : "slwi{rc ? .} {ra}, {rs}, {sh}"
+            | me == 31, sh == 32 - mb : "srwi{rc ? .} {ra}, {rs}, {mb}"
+            | sh == 0 , mb == 0       : "clrrwi{rc ? .} {ra}, {rs}, {31 - me}"
+            | sh == 0 , me == 31      : "clrlwi{rc ? .} {ra}, {rs}, {mb}"
+            | mb == 0                 : "extlwi{rc ? .} {ra}, {rs}, {me + 1}, {sh}"
+            | me == 31 - sh           : "clrlslwi{rc ? .} {ra}, {rs}, {mb + sh}, {sh}"
+            | me == 31, sh + mb >= 32 : "extrwi{rc ? .} {ra}, {rs}, {32 - mb}, {sh + mb - 32}"
+            | "rlwinm{rc ? .} {ra}, {rs}, {sh}, {mb}, {me}"
+
+rlwnmx      [0:5]=010111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] mb:u5[21:25] me:u5[26:30] rc:bool[31]
+            | mb == 0, me == 31 : "rotlw{rc ? .} {ra}, {rs}, {rb}"
+            | "rlwnm{rc ? .} {ra}, {rs}, {rb}, {mb}, {me}"
+
+# ============================================================
+# Primary opcodes 24-29: Logical Immediate D-form
+# ============================================================
+ori         [0:5]=011000 rs:gpr[6:10] ra:gpr[11:15] uimm:uimm[16:31]
+            | rs == 0, ra == 0, uimm == 0 : "nop"
+            | "ori {ra}, {rs}, {uimm}"
+
+oris        [0:5]=011001 rs:gpr[6:10] ra:gpr[11:15] uimm:uimm[16:31]
+            | "oris {ra}, {rs}, {uimm}"
+
+xori        [0:5]=011010 rs:gpr[6:10] ra:gpr[11:15] uimm:uimm[16:31]
+            | "xori {ra}, {rs}, {uimm}"
+
+xoris       [0:5]=011011 rs:gpr[6:10] ra:gpr[11:15] uimm:uimm[16:31]
+            | "xoris {ra}, {rs}, {uimm}"
+
+andi_dot    [0:5]=011100 rs:gpr[6:10] ra:gpr[11:15] uimm:uimm[16:31]
+            | "andi. {ra}, {rs}, {uimm}"
+
+andis_dot   [0:5]=011101 rs:gpr[6:10] ra:gpr[11:15] uimm:uimm[16:31]
+            | "andis. {ra}, {rs}, {uimm}"
+
+# ============================================================
+# Primary opcode 31: X-form and XO-form
+# ============================================================
+
+# --- Integer Compare X-form ---
+cmp         [0:5]=011111 crfd:u3[6:8] [9]=0 l:bool[10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0000000000 [31]=0
+            | l == 0, crfd == 0 : "cmpw {ra}, {rb}"
+            | l == 0            : "cmpw cr{crfd}, {ra}, {rb}"
+            | "cmp {crfd}, {l}, {ra}, {rb}"
+
+# --- Trap X-form ---
+tw          [0:5]=011111 to:u5[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0000000100 [31]=0
+            | to == 31, ra == 0, rb == 0 : "trap"
+            | "tw {to}, {ra}, {rb}"
+
+# --- Integer Arithmetic XO-form (9-bit XO at [22:30]) ---
+subfcx      [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] oe:bool[21] [22:30]=000001000 rc:bool[31]
+            | "subfc{oe ? o}{rc ? .} {rd}, {ra}, {rb}"
+
+mulhwux     [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21]=0 [22:30]=000001011 rc:bool[31]
+            | "mulhwu{rc ? .} {rd}, {ra}, {rb}"
+
+addcx       [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] oe:bool[21] [22:30]=000001010 rc:bool[31]
+            | "addc{oe ? o}{rc ? .} {rd}, {ra}, {rb}"
+
+lwarx       [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0000010100 [31]=0
+            | "lwarx {rd}, {ra}, {rb}"
+
+lwzx        [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0000010111 [31]=0
+            | "lwzx {rd}, {ra}, {rb}"
+
+slwx        [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0000011000 rc:bool[31]
+            | "slw{rc ? .} {ra}, {rs}, {rb}"
+
+cntlzwx     [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] [16:20]=00000 [21:30]=0000011010 rc:bool[31]
+            | "cntlzw{rc ? .} {ra}, {rs}"
+
+andx        [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0000011100 rc:bool[31]
+            | "and{rc ? .} {ra}, {rs}, {rb}"
+
+cmpl        [0:5]=011111 crfd:u3[6:8] [9]=0 l:bool[10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0000100000 [31]=0
+            | l == 0, crfd == 0 : "cmplw {ra}, {rb}"
+            | l == 0            : "cmplw cr{crfd}, {ra}, {rb}"
+            | "cmpl {crfd}, {l}, {ra}, {rb}"
+
+subfx       [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] oe:bool[21] [22:30]=000101000 rc:bool[31]
+            | "subf{oe ? o}{rc ? .} {rd}, {ra}, {rb}"
+
+dcbst       [0:5]=011111 [6:10]=00000 ra:gpr[11:15] rb:gpr[16:20] [21:30]=0000110110 [31]=0
+            | "dcbst {ra}, {rb}"
+
+lwzux       [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0000110111 [31]=0
+            | "lwzux {rd}, {ra}, {rb}"
+
+andcx       [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0000111100 rc:bool[31]
+            | "andc{rc ? .} {ra}, {rs}, {rb}"
+
+mulhwx      [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21]=0 [22:30]=001001011 rc:bool[31]
+            | "mulhw{rc ? .} {rd}, {ra}, {rb}"
+
+mfcr        [0:5]=011111 rd:gpr[6:10] [11:20]=0000000000 [21:30]=0000010011 [31]=0
+            | "mfcr {rd}"
+
+mfmsr       [0:5]=011111 rd:gpr[6:10] [11:20]=0000000000 [21:30]=0001010011 [31]=0
+            | "mfmsr {rd}"
+
+dcbf        [0:5]=011111 [6:10]=00000 ra:gpr[11:15] rb:gpr[16:20] [21:30]=0001010110 [31]=0
+            | "dcbf {ra}, {rb}"
+
+lbzx        [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0001010111 [31]=0
+            | "lbzx {rd}, {ra}, {rb}"
+
+negx        [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] [16:20]=00000 oe:bool[21] [22:30]=001101000 rc:bool[31]
+            | "neg{oe ? o}{rc ? .} {rd}, {ra}"
+
+lbzux       [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0001110111 [31]=0
+            | "lbzux {rd}, {ra}, {rb}"
+
+norx        [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0001111100 rc:bool[31]
+            | rs == rb : "not{rc ? .} {ra}, {rs}"
+            | "nor{rc ? .} {ra}, {rs}, {rb}"
+
+subfex      [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] oe:bool[21] [22:30]=010001000 rc:bool[31]
+            | "subfe{oe ? o}{rc ? .} {rd}, {ra}, {rb}"
+
+addex       [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] oe:bool[21] [22:30]=010001010 rc:bool[31]
+            | "adde{oe ? o}{rc ? .} {rd}, {ra}, {rb}"
+
+mtcrf       [0:5]=011111 rs:gpr[6:10] [11]=0 crm:u8[12:19] [20]=0 [21:30]=0010010000 [31]=0
+            | crm == 255 : "mtcr {rs}"
+            | "mtcrf {crm}, {rs}"
+
+mtmsr       [0:5]=011111 rs:gpr[6:10] [11:20]=0000000000 [21:30]=0010010010 [31]=0
+            | "mtmsr {rs}"
+
+stwcx_dot   [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0010010110 [31]=1
+            | "stwcx. {rs}, {ra}, {rb}"
+
+stwx        [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0010010111 [31]=0
+            | "stwx {rs}, {ra}, {rb}"
+
+stwux       [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0010110111 [31]=0
+            | "stwux {rs}, {ra}, {rb}"
+
+subfzex     [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] [16:20]=00000 oe:bool[21] [22:30]=011001000 rc:bool[31]
+            | "subfze{oe ? o}{rc ? .} {rd}, {ra}"
+
+addzex      [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] [16:20]=00000 oe:bool[21] [22:30]=011001010 rc:bool[31]
+            | "addze{oe ? o}{rc ? .} {rd}, {ra}"
+
+mtsr        [0:5]=011111 rs:gpr[6:10] [11]=0 sr:u4[12:15] [16:20]=00000 [21:30]=0011010010 [31]=0
+            | "mtsr {sr}, {rs}"
+
+stbx        [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0011010111 [31]=0
+            | "stbx {rs}, {ra}, {rb}"
+
+subfmex     [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] [16:20]=00000 oe:bool[21] [22:30]=011101000 rc:bool[31]
+            | "subfme{oe ? o}{rc ? .} {rd}, {ra}"
+
+addmex      [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] [16:20]=00000 oe:bool[21] [22:30]=011101010 rc:bool[31]
+            | "addme{oe ? o}{rc ? .} {rd}, {ra}"
+
+mullwx      [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] oe:bool[21] [22:30]=011101011 rc:bool[31]
+            | "mullw{oe ? o}{rc ? .} {rd}, {ra}, {rb}"
+
+mtsrin      [0:5]=011111 rs:gpr[6:10] [11:15]=00000 rb:gpr[16:20] [21:30]=0011110010 [31]=0
+            | "mtsrin {rs}, {rb}"
+
+dcbtst      [0:5]=011111 [6:10]=00000 ra:gpr[11:15] rb:gpr[16:20] [21:30]=0011110110 [31]=0
+            | "dcbtst {ra}, {rb}"
+
+stbux       [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0011110111 [31]=0
+            | "stbux {rs}, {ra}, {rb}"
+
+addx        [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] oe:bool[21] [22:30]=100001010 rc:bool[31]
+            | "add{oe ? o}{rc ? .} {rd}, {ra}, {rb}"
+
+dcbt        [0:5]=011111 [6:10]=00000 ra:gpr[11:15] rb:gpr[16:20] [21:30]=0100010110 [31]=0
+            | "dcbt {ra}, {rb}"
+
+lhzx        [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0100010111 [31]=0
+            | "lhzx {rd}, {ra}, {rb}"
+
+eqvx        [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0100011100 rc:bool[31]
+            | "eqv{rc ? .} {ra}, {rs}, {rb}"
+
+tlbie       [0:5]=011111 [6:10]=00000 [11:15]=00000 rb:gpr[16:20] [21:30]=0100110010 [31]=0
+            | "tlbie {rb}"
+
+eciwx       [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0100110110 [31]=0
+            | "eciwx {rd}, {ra}, {rb}"
+
+lhzux       [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0100110111 [31]=0
+            | "lhzux {rd}, {ra}, {rb}"
+
+xorx        [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0100111100 rc:bool[31]
+            | "xor{rc ? .} {ra}, {rs}, {rb}"
+
+mfspr       [0:5]=011111 rd:gpr[6:10] spr:u16[11:20] [21:30]=0101010011 [31]=0
+            | spr == 256 : "mflr {rd}"
+            | spr == 288 : "mfctr {rd}"
+            | spr == 32  : "mfxer {rd}"
+            | "mfspr {rd}, {spr_name(spr % 32 * 32 + spr / 32)}"
+
+lhax        [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0101010111 [31]=0
+            | "lhax {rd}, {ra}, {rb}"
+
+tlbia       [0:5]=011111 [6:10]=00000 [11:15]=00000 [16:20]=00000 [21:30]=0101110010 [31]=0
+
+mftb        [0:5]=011111 rd:gpr[6:10] tbr:u16[11:20] [21:30]=0101110011 [31]=0
+            | tbr == 392 : "mftb {rd}"
+            | tbr == 424 : "mftbu {rd}"
+            | "mftb {rd}, {tbr % 32 * 32 + tbr / 32}"
+
+lhaux       [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0101110111 [31]=0
+            | "lhaux {rd}, {ra}, {rb}"
+
+sthx        [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0110010111 [31]=0
+            | "sthx {rs}, {ra}, {rb}"
+
+orcx        [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0110011100 rc:bool[31]
+            | "orc{rc ? .} {ra}, {rs}, {rb}"
+
+ecowx       [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0110110110 [31]=0
+            | "ecowx {rs}, {ra}, {rb}"
+
+sthux       [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0110110111 [31]=0
+            | "sthux {rs}, {ra}, {rb}"
+
+orx         [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0110111100 rc:bool[31]
+            | rs == rb : "mr{rc ? .} {ra}, {rs}"
+            | "or{rc ? .} {ra}, {rs}, {rb}"
+
+divwux      [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] oe:bool[21] [22:30]=111001011 rc:bool[31]
+            | "divwu{oe ? o}{rc ? .} {rd}, {ra}, {rb}"
+
+mtspr       [0:5]=011111 rs:gpr[6:10] spr:u16[11:20] [21:30]=0111010011 [31]=0
+            | spr == 256 : "mtlr {rs}"
+            | spr == 288 : "mtctr {rs}"
+            | spr == 32  : "mtxer {rs}"
+            | "mtspr {spr_name(spr % 32 * 32 + spr / 32)}, {rs}"
+
+dcbi        [0:5]=011111 [6:10]=00000 ra:gpr[11:15] rb:gpr[16:20] [21:30]=0111010110 [31]=0
+            | "dcbi {ra}, {rb}"
+
+nandx       [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=0111011100 rc:bool[31]
+            | "nand{rc ? .} {ra}, {rs}, {rb}"
+
+divwx       [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] oe:bool[21] [22:30]=111101011 rc:bool[31]
+            | "divw{oe ? o}{rc ? .} {rd}, {ra}, {rb}"
+
+mcrxr       [0:5]=011111 crfd:u3[6:8] [9:20]=000000000000 [21:30]=1000000000 [31]=0
+            | "mcrxr cr{crfd}"
+
+lwbrx       [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1000010110 [31]=0
+            | "lwbrx {rd}, {ra}, {rb}"
+
+lfsx        [0:5]=011111 fd:fpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1000010111 [31]=0
+            | "lfsx {fd}, {ra}, {rb}"
+
+srwx        [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1000011000 rc:bool[31]
+            | "srw{rc ? .} {ra}, {rs}, {rb}"
+
+lswx        [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1000010101 [31]=0
+            | "lswx {rd}, {ra}, {rb}"
+
+tlbsync     [0:5]=011111 [6:10]=00000 [11:15]=00000 [16:20]=00000 [21:30]=1000110110 [31]=0
+
+lfsux       [0:5]=011111 fd:fpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1000110111 [31]=0
+            | "lfsux {fd}, {ra}, {rb}"
+
+mfsr        [0:5]=011111 rd:gpr[6:10] [11]=0 sr:u4[12:15] [16:20]=00000 [21:30]=1001010011 [31]=0
+            | "mfsr {rd}, {sr}"
+
+lswi        [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] nb:u5[16:20] [21:30]=1001010101 [31]=0
+            | "lswi {rd}, {ra}, {nb}"
+
+sync        [0:5]=011111 [6:8]=000 l:u2[9:10] [11:20]=0000000000 [21:30]=1001010110 [31]=0
+
+lfdx        [0:5]=011111 fd:fpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1001010111 [31]=0
+            | "lfdx {fd}, {ra}, {rb}"
+
+lfdux       [0:5]=011111 fd:fpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1001110111 [31]=0
+            | "lfdux {fd}, {ra}, {rb}"
+
+mfsrin      [0:5]=011111 rd:gpr[6:10] [11:15]=00000 rb:gpr[16:20] [21:30]=1010010011 [31]=0
+            | "mfsrin {rd}, {rb}"
+
+stswx       [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1010010101 [31]=0
+            | "stswx {rs}, {ra}, {rb}"
+
+stwbrx      [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1010010110 [31]=0
+            | "stwbrx {rs}, {ra}, {rb}"
+
+stfsx       [0:5]=011111 fs:fpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1010010111 [31]=0
+            | "stfsx {fs}, {ra}, {rb}"
+
+stfsux      [0:5]=011111 fs:fpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1010110111 [31]=0
+            | "stfsux {fs}, {ra}, {rb}"
+
+stswi       [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] nb:u5[16:20] [21:30]=1011010101 [31]=0
+            | "stswi {rs}, {ra}, {nb}"
+
+stfdx       [0:5]=011111 fs:fpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1011010111 [31]=0
+            | "stfdx {fs}, {ra}, {rb}"
+
+stfdux      [0:5]=011111 fs:fpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1011110111 [31]=0
+            | "stfdux {fs}, {ra}, {rb}"
+
+dcba        [0:5]=011111 [6:10]=00000 ra:gpr[11:15] rb:gpr[16:20] [21:30]=1011110110 [31]=0
+            | "dcba {ra}, {rb}"
+
+lhbrx       [0:5]=011111 rd:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1100010110 [31]=0
+            | "lhbrx {rd}, {ra}, {rb}"
+
+srawx       [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1100011000 rc:bool[31]
+            | "sraw{rc ? .} {ra}, {rs}, {rb}"
+
+srawix      [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] sh:u5[16:20] [21:30]=1100111000 rc:bool[31]
+            | "srawi{rc ? .} {ra}, {rs}, {sh}"
+
+eieio       [0:5]=011111 [6:10]=00000 [11:15]=00000 [16:20]=00000 [21:30]=1101010110 [31]=0
+
+sthbrx      [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1110010110 [31]=0
+            | "sthbrx {rs}, {ra}, {rb}"
+
+extshx      [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] [16:20]=00000 [21:30]=1110011010 rc:bool[31]
+            | "extsh{rc ? .} {ra}, {rs}"
+
+extsbx      [0:5]=011111 rs:gpr[6:10] ra:gpr[11:15] [16:20]=00000 [21:30]=1110111010 rc:bool[31]
+            | "extsb{rc ? .} {ra}, {rs}"
+
+icbi        [0:5]=011111 [6:10]=00000 ra:gpr[11:15] rb:gpr[16:20] [21:30]=1111010110 [31]=0
+            | "icbi {ra}, {rb}"
+
+stfiwx      [0:5]=011111 fs:fpr[6:10] ra:gpr[11:15] rb:gpr[16:20] [21:30]=1111010111 [31]=0
+            | "stfiwx {fs}, {ra}, {rb}"
+
+tlbld       [0:5]=011111 [6:10]=00000 [11:15]=00000 rb:gpr[16:20] [21:30]=1111010010 [31]=0
+            | "tlbld {rb}"
+
+tlbli       [0:5]=011111 [6:10]=00000 [11:15]=00000 rb:gpr[16:20] [21:30]=1111110010 [31]=0
+            | "tlbli {rb}"
+
+dcbz        [0:5]=011111 [6:10]=00000 ra:gpr[11:15] rb:gpr[16:20] [21:30]=1111110110 [31]=0
+            | "dcbz {ra}, {rb}"
+
+# ============================================================
+# Primary opcodes 32-55: Load/Store D-form
+# ============================================================
+lwz         [0:5]=100000 rd:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "lwz {rd}, {d}({ra})"
+
+lwzu        [0:5]=100001 rd:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "lwzu {rd}, {d}({ra})"
+
+lbz         [0:5]=100010 rd:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "lbz {rd}, {d}({ra})"
+
+lbzu        [0:5]=100011 rd:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "lbzu {rd}, {d}({ra})"
+
+stw         [0:5]=100100 rs:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "stw {rs}, {d}({ra})"
+
+stwu        [0:5]=100101 rs:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "stwu {rs}, {d}({ra})"
+
+stb         [0:5]=100110 rs:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "stb {rs}, {d}({ra})"
+
+stbu        [0:5]=100111 rs:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "stbu {rs}, {d}({ra})"
+
+lhz         [0:5]=101000 rd:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "lhz {rd}, {d}({ra})"
+
+lhzu        [0:5]=101001 rd:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "lhzu {rd}, {d}({ra})"
+
+lha         [0:5]=101010 rd:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "lha {rd}, {d}({ra})"
+
+lhau        [0:5]=101011 rd:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "lhau {rd}, {d}({ra})"
+
+sth         [0:5]=101100 rs:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "sth {rs}, {d}({ra})"
+
+sthu        [0:5]=101101 rs:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "sthu {rs}, {d}({ra})"
+
+lmw         [0:5]=101110 rd:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "lmw {rd}, {d}({ra})"
+
+stmw        [0:5]=101111 rs:gpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "stmw {rs}, {d}({ra})"
+
+# FP Load D-form
+lfs         [0:5]=110000 fd:fpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "lfs {fd}, {d}({ra})"
+
+lfsu        [0:5]=110001 fd:fpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "lfsu {fd}, {d}({ra})"
+
+lfd         [0:5]=110010 fd:fpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "lfd {fd}, {d}({ra})"
+
+lfdu        [0:5]=110011 fd:fpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "lfdu {fd}, {d}({ra})"
+
+# FP Store D-form
+stfs        [0:5]=110100 fs:fpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "stfs {fs}, {d}({ra})"
+
+stfsu       [0:5]=110101 fs:fpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "stfsu {fs}, {d}({ra})"
+
+stfd        [0:5]=110110 fs:fpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "stfd {fs}, {d}({ra})"
+
+stfdu       [0:5]=110111 fs:fpr[6:10] ra:gpr[11:15] d:disp[16:31]
+            | "stfdu {fs}, {d}({ra})"
+
+# ============================================================
+# Primary opcodes 56-57: Paired Singles Quantized Load
+# ============================================================
+psq_l       [0:5]=111000 fd:fpr[6:10] ra:gpr[11:15] w:bool[16] i:u3[17:19] d:simm12[20:31]
+            | "psq_l {fd}, {d}({ra}), {w}, {i}"
+
+psq_lu      [0:5]=111001 fd:fpr[6:10] ra:gpr[11:15] w:bool[16] i:u3[17:19] d:simm12[20:31]
+            | "psq_lu {fd}, {d}({ra}), {w}, {i}"
+
+# ============================================================
+# Primary opcode 59: FP Single Arithmetic A-form
+# ============================================================
+fdivsx      [0:5]=111011 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] [21:25]=00000 [26:30]=10010 rc:bool[31]
+            | "fdivs{rc ? .} {fd}, {fa}, {fb}"
+
+fsubsx      [0:5]=111011 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] [21:25]=00000 [26:30]=10100 rc:bool[31]
+            | "fsubs{rc ? .} {fd}, {fa}, {fb}"
+
+faddsx      [0:5]=111011 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] [21:25]=00000 [26:30]=10101 rc:bool[31]
+            | "fadds{rc ? .} {fd}, {fa}, {fb}"
+
+fsqrtsx     [0:5]=111011 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:25]=00000 [26:30]=10110 rc:bool[31]
+            | "fsqrts{rc ? .} {fd}, {fb}"
+
+fresx       [0:5]=111011 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:25]=00000 [26:30]=11000 rc:bool[31]
+            | "fres{rc ? .} {fd}, {fb}"
+
+fmulsx      [0:5]=111011 fd:fpr[6:10] fa:fpr[11:15] [16:20]=00000 fc:fpr[21:25] [26:30]=11001 rc:bool[31]
+            | "fmuls{rc ? .} {fd}, {fa}, {fc}"
+
+fmsubsx     [0:5]=111011 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=11100 rc:bool[31]
+            | "fmsubs{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+fmaddsx     [0:5]=111011 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=11101 rc:bool[31]
+            | "fmadds{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+fnmsubsx    [0:5]=111011 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=11110 rc:bool[31]
+            | "fnmsubs{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+fnmaddsx    [0:5]=111011 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=11111 rc:bool[31]
+            | "fnmadds{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+# ============================================================
+# Primary opcodes 60-61: Paired Singles Quantized Store
+# ============================================================
+psq_st      [0:5]=111100 fs:fpr[6:10] ra:gpr[11:15] w:bool[16] i:u3[17:19] d:simm12[20:31]
+            | "psq_st {fs}, {d}({ra}), {w}, {i}"
+
+psq_stu     [0:5]=111101 fs:fpr[6:10] ra:gpr[11:15] w:bool[16] i:u3[17:19] d:simm12[20:31]
+            | "psq_stu {fs}, {d}({ra}), {w}, {i}"
+
+# ============================================================
+# Primary opcode 63: FP Double X-form and A-form
+# ============================================================
+
+# FP Compare X-form
+fcmpu       [0:5]=111111 crfd:u3[6:8] [9:10]=00 fa:fpr[11:15] fb:fpr[16:20] [21:30]=0000000000 [31]=0
+            | "fcmpu cr{crfd}, {fa}, {fb}"
+
+# FP Move/Convert X-form (10-bit XO at [21:30])
+frspx       [0:5]=111111 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:30]=0000001100 rc:bool[31]
+            | "frsp{rc ? .} {fd}, {fb}"
+
+fctiwx      [0:5]=111111 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:30]=0000001110 rc:bool[31]
+            | "fctiw{rc ? .} {fd}, {fb}"
+
+fctiwzx     [0:5]=111111 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:30]=0000001111 rc:bool[31]
+            | "fctiwz{rc ? .} {fd}, {fb}"
+
+fcmpo       [0:5]=111111 crfd:u3[6:8] [9:10]=00 fa:fpr[11:15] fb:fpr[16:20] [21:30]=0000100000 [31]=0
+            | "fcmpo cr{crfd}, {fa}, {fb}"
+
+mtfsb1x     [0:5]=111111 crbd:u5[6:10] [11:20]=0000000000 [21:30]=0000100110 rc:bool[31]
+            | "mtfsb1{rc ? .} {crbd}"
+
+fnegx       [0:5]=111111 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:30]=0000101000 rc:bool[31]
+            | "fneg{rc ? .} {fd}, {fb}"
+
+mcrfs       [0:5]=111111 crfd:u3[6:8] [9:10]=00 crfs:u3[11:13] [14:20]=0000000 [21:30]=0001000000 [31]=0
+            | "mcrfs cr{crfd}, cr{crfs}"
+
+mtfsb0x     [0:5]=111111 crbd:u5[6:10] [11:20]=0000000000 [21:30]=0001000110 rc:bool[31]
+            | "mtfsb0{rc ? .} {crbd}"
+
+fmrx        [0:5]=111111 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:30]=0001001000 rc:bool[31]
+            | "fmr{rc ? .} {fd}, {fb}"
+
+mtfsfix     [0:5]=111111 crfd:u3[6:8] [9:10]=00 [11:15]=00000 imm:u4[16:19] [20]=0 [21:30]=0010000110 rc:bool[31]
+            | "mtfsfi{rc ? .} cr{crfd}, {imm}"
+
+fnabsx      [0:5]=111111 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:30]=0010001000 rc:bool[31]
+            | "fnabs{rc ? .} {fd}, {fb}"
+
+fabsx       [0:5]=111111 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:30]=0100001000 rc:bool[31]
+            | "fabs{rc ? .} {fd}, {fb}"
+
+mffsx       [0:5]=111111 fd:fpr[6:10] [11:20]=0000000000 [21:30]=1001000111 rc:bool[31]
+            | "mffs{rc ? .} {fd}"
+
+mtfsfx      [0:5]=111111 [6]=0 fm:u8[7:14] [15]=0 fb:fpr[16:20] [21:30]=1011000111 rc:bool[31]
+            | "mtfsf{rc ? .} {fm}, {fb}"
+
+# FP Double Arithmetic A-form (5-bit XO at [26:30])
+fdivx       [0:5]=111111 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] [21:25]=00000 [26:30]=10010 rc:bool[31]
+            | "fdiv{rc ? .} {fd}, {fa}, {fb}"
+
+fsubx       [0:5]=111111 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] [21:25]=00000 [26:30]=10100 rc:bool[31]
+            | "fsub{rc ? .} {fd}, {fa}, {fb}"
+
+faddx       [0:5]=111111 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] [21:25]=00000 [26:30]=10101 rc:bool[31]
+            | "fadd{rc ? .} {fd}, {fa}, {fb}"
+
+fsqrtx      [0:5]=111111 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:25]=00000 [26:30]=10110 rc:bool[31]
+            | "fsqrt{rc ? .} {fd}, {fb}"
+
+fselx       [0:5]=111111 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=10111 rc:bool[31]
+            | "fsel{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+fmulx       [0:5]=111111 fd:fpr[6:10] fa:fpr[11:15] [16:20]=00000 fc:fpr[21:25] [26:30]=11001 rc:bool[31]
+            | "fmul{rc ? .} {fd}, {fa}, {fc}"
+
+frsqrtex    [0:5]=111111 fd:fpr[6:10] [11:15]=00000 fb:fpr[16:20] [21:25]=00000 [26:30]=11010 rc:bool[31]
+            | "frsqrte{rc ? .} {fd}, {fb}"
+
+fmsubx      [0:5]=111111 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=11100 rc:bool[31]
+            | "fmsub{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+fmaddx      [0:5]=111111 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=11101 rc:bool[31]
+            | "fmadd{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+fnmsubx     [0:5]=111111 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=11110 rc:bool[31]
+            | "fnmsub{rc ? .} {fd}, {fa}, {fc}, {fb}"
+
+fnmaddx     [0:5]=111111 fd:fpr[6:10] fa:fpr[11:15] fb:fpr[16:20] fc:fpr[21:25] [26:30]=11111 rc:bool[31]
+            | "fnmadd{rc ? .} {fd}, {fa}, {fc}, {fb}"

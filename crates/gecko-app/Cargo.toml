@@ -1,0 +1,52 @@
+[package]
+name = "gecko-app"
+version = "0.1.0"
+license = "GPL-3.0-only"
+edition = "2024"
+
+[[bin]]
+name = "gecko"
+path = "src/main.rs"
+
+[dependencies]
+image = { path = "../gecko-image" }
+nod = { version = "1.4.4", default-features = false, features = ["compress-zstd"] }
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+indexed_deflate = "0.1.0"
+zerocopy = "0.8.57"
+gecko = { path = "../gecko-core", features = ["fps-counter"] }
+hostinput = { path = "../gecko-hostinput" }
+backend-wgpu = { path = "../gecko-backend-wgpu" }
+wgpu = "29.0.3"
+cpal = "0.17.3"
+ringbuf = "0.5.0"
+spin_sleep = "1.3.3"
+mimalloc = { version = "0.1.50", default-features = false }
+iced = { git = "https://github.com/iced-rs/iced.git", rev = "0d12e964da8c3f0f7a02d3d731e3187eecfe5779", features = ["tokio", "advanced", "image"] }
+iced_aw = { git = "https://github.com/ioncodes/iced_aw.git", rev = "0d6fe5f62ea12bfbbc97bf7076cc6063acf23c3f", default-features = false, features = ["menu"] }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "fs", "macros", "sync"] }
+futures = { version = "0.3.32", default-features = false, features = ["std", "async-await"] }
+serde = { version = "1.0.228", features = ["derive", "rc"] }
+serde_bytes = "0.11.19"
+bincode = { version = "2.0.1", default-features = false, features = ["serde", "std"] }
+toml = "1.1.2"
+walkdir = "2.5.0"
+rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal"] }
+tracing = { version = "0.1.44", features = ["release_max_level_off"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+clap = { version = "4.6.1", features = ["derive"] }
+anyhow = "1.0.102"
+webbrowser = "1.0.5"
+reqwest = { version = "0.13.4", features = ["json"] }
+tempfile = "3.27.0"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+wayland-client = { version = "0.31.14", features = ["system", "dlopen"] }
+wayland-protocols = { version = "0.32.12", features = ["client", "unstable"] }
+x11-dl = "2.21.0"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_Graphics_Gdi"] }
+
+
+

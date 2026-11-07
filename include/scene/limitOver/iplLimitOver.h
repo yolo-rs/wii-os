@@ -1,0 +1,49 @@
+#ifndef IPL_LIMIT_OVER_H
+#define IPL_LIMIT_OVER_H
+
+#include "iplSceneHeader.h"
+
+namespace ipl {
+    namespace scene {
+        FADER_SCENE_CLASS(LimitOver) {
+        public:
+            LimitOver(EGG::Heap * heap);
+            virtual ~LimitOver();
+
+            virtual BOOL isReady() const;
+
+            virtual void prepare();
+            virtual void create();
+            virtual void draw();
+
+            virtual FaderSceneCommand calcFadein();
+            virtual FaderSceneCommand calcNormal();
+            virtual FaderSceneCommand calcFadeout();
+
+        private:
+            enum {
+                ANIM_FADE_IN = 0,
+                ANIM_WAIT_PUSH,
+                ANIM_FADE_OUT,
+            };
+
+            u32 getCountryIndex_();
+
+            layout::Object* mpLayout;        // 0x58
+            nand::LayoutFile* mpLayoutFile;  // 0x5C
+
+            nw4r::lyt::Pane* mpTextPane;  // 0x60
+            nw4r::lyt::Pane* mpPushPane;  // 0x64
+
+            OSTick mWaitTick;  // 0x68
+            OSTick mPushTick;  // 0x6C
+
+            bool mbFadedIn;   // 0x70
+            bool mbDoneInit;  // 0x71
+
+            u32 mWpadMask;  // 0x74
+        };
+    }  // namespace scene
+}  // namespace ipl
+
+#endif  // IPL_LIMIT_OVER_H

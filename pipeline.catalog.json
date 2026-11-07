@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "platforms": ["windows-x64", "linux-x64", "web-wasm32-webgpu", "wii-powerpc"],
+  "workspace": ".",
+  "repositories": [
+    { "name": "decomp-toolkit", "domain": "wii-assets", "adapter": "cargo-binary", "command": ["build", "--release"], "gate": "cargo" },
+    { "name": "dolphin", "domain": "emulator", "adapter": "cmake", "gate": "cmake-cxx-source-snapshot-and-rust-ffi", "sourceRoot": "wii-os/src/dolphin" },
+    { "name": "gecko", "domain": "emulator", "adapter": "gecko-matrix", "command": ["--release", "-p", "gecko-app", "-p", "tinyapp", "-p", "fifoplayer", "-p", "debugger", "-p", "multitool"], "gate": "single-root-cargo-workspace", "sourceRoot": "wii-os/crates/gecko-core" },
+    { "name": "gecko-web", "domain": "webgpu-emulator", "adapter": "gecko-wasm-pack", "command": ["build", "crates/gecko-web", "--target", "web", "--out-dir", "{output}/pkg", "--out-name", "gecko_web", "--release"], "gate": "single-root-cargo-workspace-wasm-pack-webgpu", "sourceRoot": "wii-os/crates/gecko-core" },
+    { "name": "komorebi", "domain": "windows-shell", "adapter": "cargo-packages", "packages": ["komorebic", "komorebic-no-console", "komorebi", "komorebi-bar", "komorebi-gui", "komorebi-shortcuts"], "gate": "windows-msvc", "platforms": ["windows-x64"] },
+    { "name": "room-server", "domain": "network-service", "adapter": "container-build", "gate": "docker-and-service-config" },
+    { "name": "smithay", "domain": "linux-shell", "adapter": "cargo-check-linux", "command": ["check", "--features", "test_all_features"], "gate": "linux-native-libraries", "platforms": ["linux-x64"] },
+    { "name": "wadlib", "domain": "wii-assets", "adapter": "go-library", "command": ["build", "./..."], "gate": "go" },
+    { "name": "wayland-rs", "domain": "linux-shell", "adapter": "cargo-check", "command": ["check", "--workspace"], "gate": "cargo", "platforms": ["linux-x64"] },
+    { "name": "wfc-server", "domain": "network-service", "adapter": "go-binary", "command": ["build", "-o", "{output}/wwfc.exe", "."], "gate": "go" },
+    { "name": "wii", "domain": "archive", "adapter": "archive-index", "gate": "metadata-only" },
+    { "name": "wii-examples", "domain": "homebrew", "adapter": "devkitpro-make", "command": ["-C", "{repo}"], "gate": "make-and-devkitppc" },
+    { "name": "wii-ipl", "domain": "system-reproduction", "adapter": "wii-ipl", "gate": "operator-wad-and-ninja" },
+    { "name": "Wii-Rom-Downloader", "domain": "download-tool", "adapter": "python-package", "command": ["uv", "build", "--wheel", "--out-dir", "{output}"], "gate": "uv-wheel-packaging-only" },
+    { "name": "Wii.JS", "domain": "web-ui", "adapter": "static-site", "gate": "static-copy" },
+    { "name": "wiimms-iso-tools", "domain": "wii-assets", "adapter": "unix-make", "gate": "unix-toolchain-and-license-review" },
+    { "name": "WiiUDownloader", "domain": "wiiu-tool", "adapter": "go-binary", "gate": "generated-db-go-and-go-1.26" },
+    { "name": "yasb", "domain": "windows-shell", "adapter": "python-package", "command": ["uv", "build", "--wheel", "--out-dir", "{output}"], "gate": "windows-python-3.14-and-uv", "platforms": ["windows-x64"] }
+  ]
+}

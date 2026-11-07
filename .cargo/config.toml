@@ -1,0 +1,19 @@
+# Thanks Geo! :-)
+[target.wasm32-unknown-unknown]
+rustflags = [
+  "-C", "link-args=-z stack-size=33554432",     # 32 MiB
+  "-C", "link-args=--initial-memory=134217728", # 128 MiB
+  "-C", "link-args=--max-memory=3758096384",    # 3.5 GiB (supports large RVZ images in browsers)
+  "-C", "overflow-checks=false",
+  "-C", "target-feature=+bulk-memory",
+  "-C", "target-feature=+multivalue",
+  "-C", "target-feature=+mutable-globals",
+  "-C", "target-feature=+sign-ext",
+  "-C", "target-feature=+simd128",
+  # disabled for iOS Safari support (relaxed-simd not supported, tail-call requires a new version of Safari)
+  # "-C", "target-feature=+relaxed-simd",
+  "-C", "target-feature=+tail-call",
+]
+
+[target.aarch64-pc-windows-msvc]
+linker = "rust-lld"

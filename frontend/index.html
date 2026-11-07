@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <title>Menu Wii</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+
+    <link rel="stylesheet" href="assets/css/universal.css?v=wii-canvas-v1">
+    <link rel="stylesheet" href="assets/css/tokens.css?v=menu-tokens-v1">
+    <link rel="stylesheet" href="assets/css/menu.css?v=wii-canvas-v1">
+    <link rel="stylesheet" href="assets/css/settings.css?v=wii-canvas-v1">
+    <script src="assets/js/views.js?v=wii-view-scripts-v2"></script>
+    <script src="assets/js/main.js?v=wii-canvas-v1"></script>
+    <script type="module" src="assets/js/wii-os-adapter.js?v=wii-gamepad-v1"></script>
+  </head>
+
+  <body>
+    <div class="app"></div>
+    <div class="black"></div>
+    <div id="boot-sequence" class="boot-sequence" aria-label="Démarrage Wii" role="status">
+      <img class="boot-logo" src="assets/images/channel-wiilogo.png" alt="Wii">
+      <video id="boot-video" muted playsinline preload="none" aria-label="Vidéo de démarrage Wii"></video>
+      <button id="skip-boot" type="button">Passer</button>
+    </div>
+
+    <div class="sfx">
+      <audio id="startup" src="assets/audio/startup.mp3" preload="auto"></audio>
+      <audio id="bg-music" src="assets/audio/bg-music.mp3" loop preload="auto"></audio>
+      <audio id="hover" src="assets/audio/button-hover.mp3"></audio>
+      <audio id="select" src="assets/audio/button-select.mp3"></audio>
+      <audio id="zip" src="assets/audio/zip.mp3"></audio>
+      <audio id="back" src="assets/audio/back.mp3"></audio>
+    </div>
+  </body>
+</html>

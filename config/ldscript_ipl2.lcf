@@ -1,0 +1,37 @@
+MEMORY {
+    // The BSS is moved to there as since version 2.0
+    // they were very tight on memory space in the BS2 area
+    // (0x81330000 - 0x8137D0000) which is where the Wii Menu is stored.
+
+    main:   origin = 0x81330000
+    da_bss: origin = 0x81080000
+}
+
+SECTIONS {
+    GROUP: {
+        .init       ALIGN(0x20):    {}
+        extab       ALIGN(0x20):    {}
+        extabindex  ALIGN(0x20):    {}
+        .text       ALIGN(0x20):    {}
+        .ctors      ALIGN(0x20):    {}
+        .dtors      ALIGN(0x20):    {}
+        .rodata     ALIGN(0x40):    {}
+        .data       ALIGN(0x20):    {}
+        .sdata2     ALIGN(0x20):    {}
+        .sbss2      ALIGN(0x20):    {}
+        .sdata      ALIGN(0x20):    {}
+        .sbss       ALIGN(0x20):    {}
+        .stack      ALIGN(0x100):   {}
+    } > main
+    
+    GROUP: {
+        .bss        ALIGN(0x4):     {}
+    } > da_bss
+
+    _stack_end      =   $LAST_SECTION_SYMBOL + SIZEOF($LAST_SECTION_NAME);
+    _stack_addr     =   (_stack_end + $STACKSIZE + 0x7) & ~0x7;
+    _db_stack_addr  =   (_stack_addr + 0x2000);
+    _db_stack_end   =   _stack_addr;
+    __ArenaLo       =   (_db_stack_addr + 0x1F) & ~0x1F;
+    __ArenaHi       =   $ARENAHI;
+}

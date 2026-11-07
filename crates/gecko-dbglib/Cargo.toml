@@ -1,0 +1,16 @@
+[package]
+name = "dbglib"
+version = "0.1.0"
+license = "GPL-3.0-only"
+edition = "2024"
+
+[dependencies]
+gecko = { path = "../gecko-core", default-features = false }
+disasm = { path = "../gecko-disasm" }
+image = { path = "../gecko-image", default-features = false }
+egui = "0.34.2"
+glam = "0.33.7"
+egui-phosphor = "0.12.0"
+
+
+

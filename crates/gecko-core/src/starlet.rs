@@ -1,0 +1,670 @@
+use crate::System;
+use crate::hollywood::ipc::fs::host::HostBackedFile;
+use crate::hollywood::ipc::{DeviceContext, IosDevice};
+use crate::scheduler::microseconds_to_cycles;
+use crate::system::SystemId;
+use std::collections::{HashMap, VecDeque};
+use std::path::PathBuf;
+
+const WIIMOTE_DEVICE_PATH: &str = "/dev/usb/oh1/57e/305";
+
+// As per zayd. Tuned at GC clock (486 MHz, ~20 us).
+const FINALIZE_DELAY_US: u64 = 20;
+// Give the CPU breathing room between back-to-back IPC IRQs so other interrupt
+// sources (DSP) actually get serviced. The BT stub's "no events" replies
+// would otherwise hammer the IPC handler nonstop and starve the DSP IRQ.
+const ACK_TO_NEXT_DELAY_US: u64 = 100;
+
+const DEVICE_STATE_CAPACITY: usize = 256;
+
+pub enum PendingResponse {
+    Reply { cmd_paddr: u32, result: i32 },
+    // A bare ACK without a reply, e.g. the second ACK of an IOS reload.
+    Ack,
+}
+
+// Savestate encoding of `PendingResponse::Ack`, never a real IPC result.
+const SAVED_ACK_RESULT: i32 = i32::MIN + 1;
+
+/// Backing storage for an open fd. Control devices share state across fds via
+/// a path key into the registry; host backed files own their device instance
+/// directly so each fd has its own cursor.
+enum FdEntry {
+    Shared(String),
+    Owned { path: String, dev: Box<dyn IosDevice> },
+}
+
+pub struct Starlet {
+    devices: HashMap<String, Box<dyn IosDevice>>,
+    handles: HashMap<i32, FdEntry>,
+    next_fd: i32,
+    pub pending: VecDeque<PendingResponse>,
+    pub host_fs_root: PathBuf,
+    delivery_scheduled: bool,
+}
+
+impl Starlet {
+    pub fn new() -> Self {
+        Starlet {
+            devices: HashMap::new(),
+            handles: HashMap::new(),
+            next_fd: 1,
+            pending: VecDeque::new(),
+            host_fs_root: crate::paths::fs_root(),
+            delivery_scheduled: false,
+        }
+    }
+
+    /// Install a device at `path`. Replaces any existing registration.
+    pub fn register(&mut self, path: &str, dev: Box<dyn IosDevice>) {
+        self.devices.insert(path.to_owned(), dev);
+    }
+
+    /// Allocate a fresh fd bound to a registered (shared) device path.
+    pub fn allocate_fd(&mut self, path: &str) -> i32 {
+        let fd = self.fresh_fd();
+        self.handles.insert(fd, FdEntry::Shared(path.to_owned()));
+        fd
+    }
+
+    /// Allocate a fresh fd that owns the given device instance. Used for
+    /// per-open resources (host-backed real files).
+    pub fn allocate_owned_fd(&mut self, path: &str, dev: Box<dyn IosDevice>) -> i32 {
+        let fd = self.fresh_fd();
+        self.handles.insert(
+            fd,
+            FdEntry::Owned {
+                path: path.to_owned(),
+                dev,
+            },
+        );
+        fd
+    }
+
+    fn fresh_fd(&mut self) -> i32 {
+        let fd = self.next_fd;
+        self.next_fd = self.next_fd.checked_add(1).expect("Starlet fd overflow");
+        fd
+    }
+
+    pub fn device_for_path(&mut self, path: &str) -> Option<&mut Box<dyn IosDevice>> {
+        self.devices.get_mut(path)
+    }
+
+    pub fn device_for_fd(&mut self, fd: i32) -> Option<&mut dyn IosDevice> {
+        let path = match self.handles.get(&fd)? {
+            FdEntry::Shared(p) => Some(p.clone()),
+            FdEntry::Owned { .. } => None,
+        };
+
+        if let Some(path) = path {
+            return self.devices.get_mut(&path).map(|b| b.as_mut() as &mut dyn IosDevice);
+        }
+
+        match self.handles.get_mut(&fd)? {
+            FdEntry::Owned { dev, .. } => Some(dev.as_mut()),
+            FdEntry::Shared(_) => unreachable!(),
+        }
+    }
+
+    pub fn device_path_for_fd(&self, fd: i32) -> Option<String> {
+        match self.handles.get(&fd)? {
+            FdEntry::Shared(path) | FdEntry::Owned { path, .. } => Some(path.clone()),
+        }
+    }
+
+    pub fn set_wiimote_buttons(&mut self, buttons: u16) -> bool {
+        self.devices
+            .get_mut(WIIMOTE_DEVICE_PATH)
+            .is_some_and(|dev| dev.set_wiimote_buttons(buttons))
+    }
+
+    pub fn set_wiimote_shake(&mut self, active: bool) {
+        if let Some(dev) = self.devices.get_mut(WIIMOTE_DEVICE_PATH) {
+            dev.set_wiimote_shake(active);
+        }
+    }
+
+    pub fn set_widescreen(&mut self, widescreen: bool) {
+        if let Some(dev) = self.devices.get_mut("/shared2/sys/SYSCONF") {
+            dev.set_widescreen(widescreen);
+        }
+    }
+
+    pub fn set_wiimote_options(&mut self, attached: bool, sideways: bool) {
+        if let Some(dev) = self.devices.get_mut(WIIMOTE_DEVICE_PATH) {
+            dev.set_wiimote_options(attached, sideways);
+        }
+    }
+
+    pub fn set_wiimote_accel(&mut self, accel: Option<[f32; 3]>) {
+        if let Some(dev) = self.devices.get_mut(WIIMOTE_DEVICE_PATH) {
+            dev.set_wiimote_accel(accel);
+        }
+    }
+
+    pub fn wiimote_rumble(&self) -> bool {
+        self.devices
+            .get(WIIMOTE_DEVICE_PATH)
+            .is_some_and(|dev| dev.wiimote_rumble())
+    }
+
+    pub fn set_nunchuk(&mut self, buttons: u8, stick_x: u8, stick_y: u8) -> bool {
+        self.devices
+            .get_mut(WIIMOTE_DEVICE_PATH)
+            .is_some_and(|dev| dev.set_nunchuk(buttons, stick_x, stick_y))
+    }
+
+    pub fn set_ir_pointer(&mut self, pointer: Option<(u16, u16)>) -> bool {
+        self.devices
+            .get_mut(WIIMOTE_DEVICE_PATH)
+            .is_some_and(|dev| dev.set_ir_pointer(pointer))
+    }
+
+    pub fn tick_wiimote(&mut self) {
+        if let Some(dev) = self.devices.get_mut(WIIMOTE_DEVICE_PATH) {
+            dev.tick_input_report();
+        }
+    }
+
+    /// Drop an fd. Calls `close` on the underlying device first; for owned
+    /// fds the device is dropped after close.
+    pub fn close_fd(&mut self, fd: i32, ctx: &mut DeviceContext<'_>) -> i32 {
+        let Some(entry) = self.handles.remove(&fd) else {
+            return crate::hollywood::ipc::IPC_EINVAL;
+        };
+
+        match entry {
+            FdEntry::Owned { mut dev, .. } => dev.close(ctx),
+            FdEntry::Shared(path) => match self.devices.get_mut(&path) {
+                Some(dev) => dev.close(ctx),
+                None => crate::hollywood::ipc::IPC_EINVAL,
+            },
+        }
+    }
+}
+
+impl System<{ crate::WII }> {
+    fn reload_ios(&mut self, imv: &crate::wii::ios::MemoryValues) {
+        // Refresh IOS memory without rerunning the disc boot
+        // setup, which would overwrite the running loader's state.
+        Self::write_ios_low_memory(self, imv);
+
+        self.scheduler.cancel(crate::scheduler::Handler::IpcDeliver);
+
+        let fs_root = self.starlet.host_fs_root.clone();
+        let sysconf = self.starlet.devices.remove("/shared2/sys/SYSCONF");
+        let setting_txt = self
+            .starlet
+            .devices
+            .remove(crate::hollywood::ipc::fs::nand::SETTING_TXT_IOS_PATH);
+        self.starlet = Starlet::new();
+        self.starlet.host_fs_root = fs_root;
+
+        self.initialize_starlet_devices();
+
+        if let Some(sysconf) = sysconf {
+            self.starlet.register("/shared2/sys/SYSCONF", sysconf);
+        }
+        if let Some(setting_txt) = setting_txt {
+            self.starlet
+                .register(crate::hollywood::ipc::fs::nand::SETTING_TXT_IOS_PATH, setting_txt);
+        }
+
+        tracing::debug!(ios = imv.ios_number, "IOS reloaded");
+    }
+
+    pub fn initialize_starlet_devices(&mut self) {
+        use crate::hollywood::ipc::{self, stm};
+
+        let fs_root = self.starlet.host_fs_root.clone();
+        ipc::fs::nand::ensure_skeleton(&fs_root);
+        ipc::fs::nand::ensure_wc24_files(&fs_root);
+
+        self.starlet.register("/dev/stm/immediate", Box::new(stm::Immediate));
+        self.starlet.register("/dev/stm/eventhook", Box::new(stm::EventHook));
+        self.starlet
+            .register("/dev/fs", Box::new(ipc::fs::FileSystem::new(fs_root.clone())));
+        self.starlet
+            .register("/shared2/sys/SYSCONF", Box::new(ipc::sysconf::SysConf::new(&fs_root)));
+        self.starlet
+            .register("/dev/di", Box::new(ipc::di::DiskInterface::new()));
+        self.starlet.register("/dev/es", Box::new(ipc::es::ETicketServices));
+        for path in ["/dev/net/kd/request", "/dev/net/kd/time"] {
+            self.starlet.register(path, Box::new(ipc::net::Wc24::new(&fs_root)));
+        }
+        self.starlet
+            .register(WIIMOTE_DEVICE_PATH, Box::new(ipc::usb::Bluetooth::new()));
+        self.starlet.register("/dev/sdio/slot0", Box::new(ipc::sdio::SdCard));
+    }
+
+    pub fn create_device_context(&mut self) -> (&mut Starlet, DeviceContext<'_>) {
+        (
+            &mut self.starlet,
+            DeviceContext {
+                mmio: &mut self.mmio,
+                scheduler: &mut self.scheduler,
+                di: &mut self.di,
+                pi: &mut self.pi,
+                device_path: "<unbound>".to_owned(),
+                reload_ios: None,
+            },
+        )
+    }
+}
+
+pub fn dispatch_command<const SYSTEM: SystemId>(sys: &mut System<SYSTEM>, cmd_paddr: u32) {
+    assert!(SYSTEM == crate::WII, "Starlet dispatch reached on non-Wii system");
+
+    let wii: &mut crate::Wii = unsafe { ::core::mem::transmute(sys) };
+
+    let (result, reload_ios) = self::process_command(wii, cmd_paddr);
+    if let Some(imv) = reload_ios {
+        crate::hollywood::ipc::deliver_ack(wii);
+        wii.reload_ios(imv);
+        // libogc's relaunch request waits for two ACKs. Queue the second one separately so the PPC can observe and
+        // clear the first.
+        wii.starlet.pending.push_back(PendingResponse::Ack);
+        self::ensure_delivery_scheduled(wii, ACK_TO_NEXT_DELAY_US);
+        return;
+    }
+
+    if result == crate::hollywood::ipc::IPC_HUNG {
+        crate::hollywood::ipc::deliver_ack(wii);
+        return;
+    }
+
+    wii.starlet
+        .pending
+        .push_back(PendingResponse::Reply { cmd_paddr, result });
+
+    self::ensure_delivery_scheduled(wii, FINALIZE_DELAY_US);
+}
+
+pub fn schedule_drain<const SYSTEM: SystemId>(sys: &mut System<SYSTEM>) {
+    self::ensure_delivery_scheduled::<SYSTEM>(sys, ACK_TO_NEXT_DELAY_US);
+}
+
+fn ensure_delivery_scheduled<const SYSTEM: SystemId>(sys: &mut System<SYSTEM>, delay_us: u64) {
+    if sys.starlet.delivery_scheduled {
+        return;
+    }
+
+    sys.starlet.delivery_scheduled = true;
+    sys.scheduler.schedule_in(
+        microseconds_to_cycles(SYSTEM, delay_us),
+        crate::scheduler::Handler::IpcDeliver,
+    );
+}
+
+const IOS_OPEN: u32 = 1;
+const IOS_CLOSE: u32 = 2;
+const IOS_READ: u32 = 3;
+const IOS_WRITE: u32 = 4;
+const IOS_SEEK: u32 = 5;
+const IOS_IOCTL: u32 = 6;
+const IOS_IOCTLV: u32 = 7;
+
+fn process_command(wii: &mut crate::Wii, cmd_paddr: u32) -> (i32, Option<&'static crate::wii::ios::MemoryValues>) {
+    use crate::hollywood::ipc::fs::FS_ENOENT;
+    use crate::hollywood::ipc::{IPC_EINVAL, IPC_ENOENT};
+
+    let cmd = wii.mmio.phys_read_u32(cmd_paddr);
+    let fd = wii.mmio.phys_read_u32(cmd_paddr + 0x08) as i32;
+
+    self::sync_ios_buffers(wii, cmd_paddr, cmd);
+
+    let (starlet, mut ctx) = wii.create_device_context();
+
+    let result = match cmd {
+        IOS_OPEN => {
+            let path_ptr = ctx.mmio.phys_read_u32(cmd_paddr + 0x0C);
+            let mode = ctx.mmio.phys_read_u32(cmd_paddr + 0x10);
+            let path = self::read_c_string(&mut ctx, path_ptr);
+
+            let fd = if let Some(dev) = starlet.device_for_path(&path) {
+                ctx.device_path = path.clone();
+                let rc = dev.open(&mut ctx, mode);
+                if rc >= 0 { starlet.allocate_fd(&path) } else { rc }
+            } else if let Some(real) = HostBackedFile::try_open(&starlet.host_fs_root, &path, mode) {
+                starlet.allocate_owned_fd(&path, Box::new(real))
+            } else {
+                let rc = if path.starts_with("/dev/") {
+                    IPC_ENOENT
+                } else {
+                    FS_ENOENT
+                };
+                tracing::debug!(%path, rc, "IOS_Open: not found");
+                rc
+            };
+            tracing::debug!(%path, mode, fd, "IOS_Open");
+
+            fd
+        }
+        IOS_CLOSE => {
+            let device_path = self::bind_fd_context(starlet, &mut ctx, fd);
+
+            tracing::debug!(fd, device = device_path.as_str(), "IOS_Close");
+            starlet.close_fd(fd, &mut ctx)
+        }
+        IOS_READ => {
+            let out_ptr = ctx.mmio.phys_read_u32(cmd_paddr + 0x0C);
+            let out_len = ctx.mmio.phys_read_u32(cmd_paddr + 0x10);
+            let device_path = self::bind_fd_context(starlet, &mut ctx, fd);
+
+            tracing::debug!(
+                fd,
+                device = device_path.as_str(),
+                out_ptr = format!("{out_ptr:#010X}"),
+                out_len,
+                "IOS_Read"
+            );
+
+            match starlet.device_for_fd(fd) {
+                Some(dev) => dev.read(&mut ctx, out_ptr, out_len),
+                None => IPC_EINVAL,
+            }
+        }
+        IOS_WRITE => {
+            let in_ptr = ctx.mmio.phys_read_u32(cmd_paddr + 0x0C);
+            let in_len = ctx.mmio.phys_read_u32(cmd_paddr + 0x10);
+            let device_path = self::bind_fd_context(starlet, &mut ctx, fd);
+
+            tracing::debug!(
+                fd,
+                device = device_path.as_str(),
+                in_ptr = format!("{in_ptr:#010X}"),
+                in_len,
+                "IOS_Write"
+            );
+
+            match starlet.device_for_fd(fd) {
+                Some(dev) => dev.write(&mut ctx, in_ptr, in_len),
+                None => IPC_EINVAL,
+            }
+        }
+        IOS_SEEK => {
+            let offset = ctx.mmio.phys_read_u32(cmd_paddr + 0x0C) as i32;
+            let whence = ctx.mmio.phys_read_u32(cmd_paddr + 0x10) as i32;
+            let device_path = self::bind_fd_context(starlet, &mut ctx, fd);
+
+            tracing::debug!(fd, device = device_path.as_str(), offset, whence, "IOS_Seek");
+
+            match starlet.device_for_fd(fd) {
+                Some(dev) => dev.seek(&mut ctx, offset, whence),
+                None => IPC_EINVAL,
+            }
+        }
+        IOS_IOCTL => {
+            let ioctl_cmd = ctx.mmio.phys_read_u32(cmd_paddr + 0x0C);
+            let in_ptr = ctx.mmio.phys_read_u32(cmd_paddr + 0x10);
+            let in_len = ctx.mmio.phys_read_u32(cmd_paddr + 0x14);
+            let out_ptr = ctx.mmio.phys_read_u32(cmd_paddr + 0x18);
+            let out_len = ctx.mmio.phys_read_u32(cmd_paddr + 0x1C);
+            let device_path = self::bind_fd_context(starlet, &mut ctx, fd);
+
+            tracing::debug!(
+                fd,
+                device = device_path.as_str(),
+                ioctl_cmd = format!("{ioctl_cmd:#010X}"),
+                in_ptr = format!("{in_ptr:#010X}"),
+                in_len,
+                out_ptr = format!("{out_ptr:#010X}"),
+                out_len,
+                "IOS_Ioctl"
+            );
+
+            match starlet.device_for_fd(fd) {
+                Some(dev) => dev.ioctl(&mut ctx, ioctl_cmd, in_ptr, in_len, out_ptr, out_len),
+                None => IPC_EINVAL,
+            }
+        }
+        IOS_IOCTLV => {
+            let ioctl_cmd = ctx.mmio.phys_read_u32(cmd_paddr + 0x0C);
+            let in_count = ctx.mmio.phys_read_u32(cmd_paddr + 0x10);
+            let io_count = ctx.mmio.phys_read_u32(cmd_paddr + 0x14);
+            let vec_ptr = ctx.mmio.phys_read_u32(cmd_paddr + 0x18);
+            let device_path = self::bind_fd_context(starlet, &mut ctx, fd);
+
+            tracing::debug!(
+                fd,
+                device = device_path.as_str(),
+                ioctl_cmd = format!("{ioctl_cmd:#010X}"),
+                "IOS_Ioctlv"
+            );
+
+            match starlet.device_for_fd(fd) {
+                Some(dev) => dev.ioctlv(&mut ctx, ioctl_cmd, in_count, io_count, vec_ptr),
+                None => IPC_EINVAL,
+            }
+        }
+        other => {
+            tracing::error!(cmd = other, "unimplemented IOS command");
+            IPC_EINVAL
+        }
+    };
+
+    (result, ctx.reload_ios)
+}
+
+fn sync_ios_buffers(wii: &mut crate::Wii, cmd_paddr: u32, cmd: u32) {
+    if !wii.mmio.has_deferred_efb_writebacks() {
+        return;
+    }
+
+    let arg = |wii: &crate::Wii, offset: u32| wii.mmio.phys_read_u32(cmd_paddr + offset);
+
+    match cmd {
+        IOS_READ | IOS_WRITE => {
+            let (ptr, len) = (arg(wii, 0x0C), arg(wii, 0x10));
+            wii.sync_deferred_efb_writeback(ptr, len as usize);
+        }
+        IOS_IOCTL => {
+            let (in_ptr, in_len) = (arg(wii, 0x10), arg(wii, 0x14));
+            let (out_ptr, out_len) = (arg(wii, 0x18), arg(wii, 0x1C));
+            wii.sync_deferred_efb_writeback(in_ptr, in_len as usize);
+            wii.sync_deferred_efb_writeback(out_ptr, out_len as usize);
+        }
+        IOS_IOCTLV => {
+            let (in_count, io_count, vec_ptr) = (arg(wii, 0x10), arg(wii, 0x14), arg(wii, 0x18));
+            let Some(vector_bytes) = in_count.checked_add(io_count).and_then(|n| n.checked_mul(8)) else {
+                return;
+            };
+
+            wii.sync_deferred_efb_writeback(vec_ptr, vector_bytes as usize);
+
+            for offset in (0..vector_bytes).step_by(8) {
+                let addr = wii.mmio.phys_read_u32(vec_ptr + offset);
+                let len = wii.mmio.phys_read_u32(vec_ptr + offset + 4);
+                wii.sync_deferred_efb_writeback(addr, len as usize);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn read_c_string(ctx: &mut DeviceContext<'_>, paddr: u32) -> String {
+    let mut bytes = Vec::with_capacity(64);
+
+    for i in 0..64 {
+        let b = ctx.mmio.phys_read_u8(paddr + i);
+        if b == 0 {
+            break;
+        }
+
+        bytes.push(b);
+    }
+
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
+fn bind_fd_context(starlet: &Starlet, ctx: &mut DeviceContext<'_>, fd: i32) -> String {
+    let device_path = starlet.device_path_for_fd(fd).unwrap_or_else(|| "<invalid>".to_owned());
+    ctx.device_path = device_path.clone();
+    device_path
+}
+
+pub(crate) fn deliver_pending<const SYSTEM: SystemId>(sys: &mut System<SYSTEM>) {
+    sys.starlet.delivery_scheduled = false;
+
+    let ppcctrl = &sys.hollywood.ipc.ppcctrl;
+    let busy = match sys.starlet.pending.front() {
+        Some(PendingResponse::Ack) => ppcctrl.arm_response() || ppcctrl.arm_post_ack(),
+        _ => ppcctrl.arm_response(),
+    };
+    if busy {
+        tracing::trace!(
+            queue_len = sys.starlet.pending.len(),
+            "deliver_pending: waiting for PPC to consume the previous IPC signal"
+        );
+
+        if !sys.starlet.pending.is_empty() {
+            self::ensure_delivery_scheduled::<SYSTEM>(sys, ACK_TO_NEXT_DELAY_US);
+        }
+
+        return;
+    }
+
+    let Some(p) = sys.starlet.pending.pop_front() else {
+        tracing::trace!("deliver_pending: queue empty");
+        return;
+    };
+
+    match p {
+        PendingResponse::Reply { cmd_paddr, result } => {
+            tracing::trace!(
+                cmd_paddr = format!("{cmd_paddr:#010X}"),
+                result,
+                remaining = sys.starlet.pending.len(),
+                "deliver_pending"
+            );
+            crate::hollywood::ipc::deliver_response(sys, cmd_paddr, result);
+        }
+        PendingResponse::Ack => {
+            tracing::trace!(remaining = sys.starlet.pending.len(), "deliver_pending: ack");
+            crate::hollywood::ipc::deliver_ack(sys);
+        }
+    }
+
+    if !sys.starlet.pending.is_empty() {
+        self::ensure_delivery_scheduled::<SYSTEM>(sys, ACK_TO_NEXT_DELAY_US);
+    }
+}
+
+impl Starlet {
+    pub fn save_state(&mut self, w: &mut crate::savestate::StateWriter) {
+        w.i32(self.next_fd);
+        w.bool(self.delivery_scheduled);
+
+        w.u32(self.pending.len() as u32);
+        for response in &self.pending {
+            let (cmd_paddr, result) = match *response {
+                PendingResponse::Reply { cmd_paddr, result } => (cmd_paddr, result),
+                PendingResponse::Ack => (0, SAVED_ACK_RESULT),
+            };
+            w.u32(cmd_paddr);
+            w.i32(result);
+        }
+
+        let mut devices: Vec<_> = self.devices.iter_mut().collect();
+        devices.sort_by(|a, b| a.0.cmp(b.0));
+
+        w.u32(devices.len() as u32);
+        for (path, dev) in devices {
+            w.str(path);
+
+            let mut inner = crate::savestate::StateWriter::with_capacity(DEVICE_STATE_CAPACITY);
+            dev.save_state(&mut inner);
+            w.bytes(&inner.into_inner());
+        }
+
+        let mut handles: Vec<_> = self.handles.iter_mut().collect();
+        handles.sort_by_key(|(fd, _)| **fd);
+
+        w.u32(handles.len() as u32);
+        for (fd, entry) in handles {
+            w.i32(*fd);
+            match entry {
+                FdEntry::Shared(path) => {
+                    w.u8(0);
+                    w.str(path);
+                }
+                FdEntry::Owned { path, dev } => {
+                    w.u8(1);
+                    w.str(path);
+
+                    let (mode, offset) = dev.host_file_state().unwrap_or((0, 0));
+                    w.u32(mode);
+                    w.u64(offset);
+                }
+            }
+        }
+    }
+
+    pub fn load_state(
+        &mut self,
+        r: &mut crate::savestate::StateReader<'_>,
+    ) -> Result<(), crate::savestate::StateError> {
+        self.next_fd = r.i32()?;
+        self.delivery_scheduled = r.bool()?;
+
+        self.pending.clear();
+        let pending_count = r.u32()?;
+        for _ in 0..pending_count {
+            let (cmd_paddr, result) = (r.u32()?, r.i32()?);
+            self.pending.push_back(match result {
+                SAVED_ACK_RESULT => PendingResponse::Ack,
+                _ => PendingResponse::Reply { cmd_paddr, result },
+            });
+        }
+
+        let device_count = r.u32()?;
+        for _ in 0..device_count {
+            let path = r.str()?;
+            let payload = r.bytes()?;
+
+            let Some(dev) = self.devices.get_mut(&path) else {
+                return Err(crate::savestate::StateError::Corrupt(
+                    "savestate references an unregistered IOS device",
+                ));
+            };
+
+            let mut inner = crate::savestate::StateReader::new(payload);
+            dev.load_state(&mut inner)?;
+        }
+
+        self.handles.clear();
+        let handle_count = r.u32()?;
+        for _ in 0..handle_count {
+            let fd = r.i32()?;
+            match r.u8()? {
+                0 => {
+                    self.handles.insert(fd, FdEntry::Shared(r.str()?));
+                }
+                1 => {
+                    let path = r.str()?;
+                    let mode = r.u32()?;
+                    let offset = r.u64()?;
+
+                    match HostBackedFile::reopen(&self.host_fs_root, &path, mode, offset) {
+                        Some(dev) => {
+                            self.handles.insert(
+                                fd,
+                                FdEntry::Owned {
+                                    path,
+                                    dev: Box::new(dev),
+                                },
+                            );
+                        }
+                        None => {
+                            tracing::warn!(path, "savestate: failed to reopen NAND file, dropping fd");
+                        }
+                    }
+                }
+                _ => return Err(crate::savestate::StateError::Corrupt("bad fd entry tag")),
+            }
+        }
+
+        Ok(())
+    }
+}

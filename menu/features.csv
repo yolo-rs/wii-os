@@ -1,0 +1,21 @@
+feature,area,priority,reference,clone,notes
+Startup fade to channel grid,shell,must,Wii.JS,partial,Web boot and grid exist; native and browser bundle timing/parity are not qualified
+12-slot channel grid,shell,must,Wii.JS,partial,Shared catalog populates a 12-slot page; reference population and full page-state parity are unqualified
+Occupied channel preview,channel,must,Wii.JS,partial,Preview and launch request exist; end-to-end result feedback and console transition are incomplete
+Wii Menu return from preview,navigation,must,Wii.JS,partial,Mouse, Escape and standard browser gamepad back action are wired; device and host parity remain incomplete
+Channel launch,result,must,Wii.JS,partial,Web and native hosts launch validated catalogued WAD/DOL content through configured Dolphin; browser requires the local Wii OS server
+Settings navigation,navigation,must,Wii.JS,partial,Settings overview and return exist in prototype
+Real Wii Settings screens,settings,must,physical Wii reference,no,Current Wii Settings action displays a temporary license page
+Info and credits,settings,should,Wii.JS,no,Visible control is inert
+Mail application,messaging,could,Wii.JS,no,Visible control has hover only
+Date and locale,system,should,Wii.JS,partial,English weekday and browser-local date only
+Resolution warning,accessibility,should,Wii.JS,partial,Dismissal is not persisted and keyboard/accessibility behavior is not qualified
+Keyboard navigation,accessibility,must,product requirement,partial,Browser adapter handles selected keyboard actions; GTK focus and native winit navigation exist, but browser tab/focus coverage and shared action parity remain incomplete
+Wii controller input,input,must,product requirement,no,Only standard-mapped browser Gamepad API input is present; Wii Remote support is not implemented
+Audio settings and autoplay recovery,settings,should,Wii.JS,partial,Audio elements exist; autoplay restrictions and controls are unresolved
+Responsive 4:3 and 16:9 composition,layout,must,physical Wii reference,partial,Prototype README documents viewport scaling defects
+Windows native host,platform,must,product requirement,partial,Rust winit/wgpu host draws Wii.JS artwork and launches local WAD/DOL through Dolphin; DX12 runtime verified on RTX 4070; WinUI shell and parity remain unqualified
+Browser WebGPU channel artwork,platform,must,product requirement,partial,WebGPU draws channel artwork over the DOM shell; controls and transitions remain HTML/CSS and DOM fallback remains enabled
+Linux Wayland GTK4 host,platform,must,product requirement,partial,GTK4 host shares menu-core/runtime and requires a Linux build host; desktop compositor, accessibility, controller, settings persistence and embedded wgpu canvas remain unqualified
+Pixel parity evidence,qualification,must,physical Wii reference,no,No comparable physical console captures in workspace
+WAD and NAND System Menu boot,emulation,must,product requirement,no,Independent Gecko/Dolphin runtime capability; outside UI prototype

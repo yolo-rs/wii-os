@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "sourcePolicy": "Dolphin source and Gecko crates are owned by the unified Wii OS product under src/dolphin and crates/gecko-*. Preserve their upstream revisions, build adapters, and license notices.",
+  "inventoryProfile": "c-inventory",
+  "inventoryReport": "userland/build/reports/c-source-inventory/inventory.json",
+  "components": [
+    {
+      "id": "wii-menu-core-c-abi",
+      "sourceRoot": "wii-os",
+      "sourcePath": "wii-os/crates/menu-core",
+      "role": "Shared menu state C ABI and C host",
+      "buildAdapter": "menu-core",
+      "buildProfile": "menu-core",
+      "targets": ["windows-x64", "linux-x64", "web-wasm32-webgpu"],
+      "license": "MIT",
+      "redistribution": "allowed-with-notice",
+      "integration": "Shared state API; renderers consume the opaque C ABI or Rust/WASM library."
+    },
+    {
+      "id": "wii-menu-ipl-decomp",
+      "sourceRoot": "wii-ipl",
+      "sourcePath": "sources/wii-ipl",
+      "role": "Wii Menu 4.3 source reconstruction",
+      "buildAdapter": "wii-ipl",
+      "buildProfile": "build",
+      "targets": ["wii-powerpc"],
+      "license": "CC0-1.0-root-with-nested-exceptions",
+      "redistribution": "review-nested-licenses-and-user-supplied-inputs",
+      "inputs": ["operator-supplied-WAD-per-region"],
+      "integration": "Build with its configure.py/Ninja flow; outputs main.dol, not a WAD. Keep separate from host C libraries."
+    },
+    {
+      "id": "wii-homebrew-examples",
+      "sourceRoot": "wii-examples",
+      "sourcePath": "sources/wii-examples",
+      "role": "Wii homebrew C examples",
+      "buildAdapter": "devkitpro-make",
+      "buildProfile": "build",
+      "targets": ["wii-powerpc"],
+      "license": "unresolved-root-license",
+      "redistribution": "blocked-pending-license-review",
+      "toolchain": ["devkitPPC", "libogc", "wii_rules", "make"],
+      "integration": "Build examples independently with the upstream devkitPro Makefiles."
+    },
+    {
+      "id": "wiimms-iso-tools",
+      "sourceRoot": "wiimms-iso-tools",
+      "sourcePath": "sources/wiimms-iso-tools",
+      "role": "Wii/GameCube ISO, WBFS, WDF and archive tooling in C",
+      "buildAdapter": "unix-make",
+      "buildProfile": "build",
+      "targets": ["windows-x64", "linux-x64"],
+      "license": "GPL-2.0-or-later",
+      "redistribution": "allowed-under-GPL-terms",
+      "toolchain": ["Unix-like-shell", "make", "C-compiler", "zlib", "OpenSSL", "FUSE-optional"],
+      "integration": "Build wit/wwt/wdf/wfuse through setup.sh and the project Makefiles; expose tools as CLI subprocesses."
+    },
+    {
+      "id": "wii-os-dolphin-source-and-externals",
+      "sourceRoot": "wii-os/src/dolphin",
+      "sourcePath": "src/dolphin",
+      "role": "Patched Dolphin source snapshot integrated into Wii OS with its pinned C/C++ externals",
+      "buildAdapter": "cmake-source-snapshot",
+      "buildProfile": "wii-os-native-build",
+      "targets": ["windows-x64", "linux-x64"],
+      "license": "per-Dolphin-and-external-project",
+      "redistribution": "keep-upstream-notices-and-pins",
+      "integration": "This local snapshot is the Wii OS Dolphin implementation source; retain its pinned revision and per-project license notices."
+    },
+    {
+      "id": "wii-os-gecko-runtime",
+      "sourceRoot": "wii-os/crates/gecko-core",
+      "sourcePath": "crates/gecko-core",
+      "role": "Wii/GameCube emulator runtime with native and browser WebGPU frontends",
+      "buildAdapter": "gecko-matrix",
+      "buildProfile": "build",
+      "targets": ["windows-x64", "linux-x64", "web-wasm32-webgpu"],
+      "license": "GPL-3.0",
+      "redistribution": "keep-upstream-notices-and-runtime-asset-provenance",
+      "integration": "Build from the flat root Cargo workspace; Dolphin DSP fallback files are shared from src/dolphin and no duplicate Dolphin source tree is used."
+    }
+  ],
+  "notes": [
+    "The generated inventory is authoritative for individual paths, hashes, revisions, dirty state, and license-file hashes.",
+    "A .c extension identifies a C translation unit; .h/.hh headers can be C, C++, or dual-use and are reported as ambiguous.",
+    "The inventory has one canonical Dolphin source root and one Gecko runtime root inside the Wii OS product; Gecko does not carry a second Dolphin source tree.",
+    "User-provided Wii titles, WADs, NAND images, extracted channel banners, and boot video files remain local runtime assets and are never committed or included by this catalog."
+  ]
+}

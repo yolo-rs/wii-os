@@ -1,0 +1,27 @@
+/* Baseline extracted from current local styles, not official Wii source values. */
+:root {
+  color-scheme: light;
+  --menu-surface: #f5f7f8;
+  --menu-surface-footer: #d2d6db;
+  --menu-text-primary: #474747;
+  --menu-text-secondary: #84868a;
+  --menu-text-muted: #909090;
+  --menu-boot-accent: #28536e;
+  --menu-boot-border: #9bbbc4;
+  --menu-content-aspect: 16 / 9;
+  --menu-content-max-width: 1920px;
+  --menu-transition-fast: 150ms;
+  --menu-transition-panel: 300ms;
+  --menu-transition-channel: 400ms;
+  --menu-transition-boot: 900ms;
+  --menu-focus-outline: 2px solid currentColor;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --menu-transition-fast: 0ms;
+    --menu-transition-panel: 0ms;
+    --menu-transition-channel: 0ms;
+    --menu-transition-boot: 0ms;
+  }
+}

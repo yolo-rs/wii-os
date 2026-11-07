@@ -1,0 +1,75 @@
+# IDE folders
+.idea/
+.vs/
+
+# Caches
+__pycache__
+.mypy_cache
+.cache/
+
+# Original files
+orig/*/*
+!orig/*/.gitkeep
+*.dol
+*.rel
+*.elf
+*.app
+*.o
+*.map
+*.MAP
+
+# Build files
+build/
+.ninja_*
+build.ninja
+
+# decompctx output
+ctx.*
+*.ctx
+
+# Generated configs
+objdiff.json
+compile_commands.json
+
+# Miscellaneous
+.private/*
+.ghidra/*
+progress/*
+hbprojs/*
+/*.txt
+*.exe
+*.lnk
+*.bat
+*.bak
+*.log
+*.zip
+*.7z
+
+# Cargo workspace build output
+/target/
+/crates/*/target/
+/crates/*/pkg/
+/out/
+/screenshots/
+/screenshotdb/
+/private/
+perf.*
+profile.json.gz
+/fs/
+/cache/
+system/
+*.sram
+*.dff
+dump.wav
+/profile-dumps/
+/texturepacks/
+/userland/build/
+/userland/data/dolphin-wii-eu/
+/userland/data/wii/assets/
+/userland/data/wii/brew/
+/userland/data/wii/roms/
+/userland/data/wii/wads/
+/userland/data/wii/imports/
+
+/sources/
+

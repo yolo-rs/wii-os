@@ -1,0 +1,7 @@
+include "../common/dsp.chipi"
+
+target rust {
+    decoder GcDsp {
+        output "$OUT_DIR/dsp.rs"
+    }
+}

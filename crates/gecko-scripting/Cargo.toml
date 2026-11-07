@@ -1,0 +1,16 @@
+[package]
+name = "scripting"
+version = "0.1.0"
+license = "GPL-3.0-only"
+edition = "2024"
+
+[features]
+hooks-mut-traps = ["gecko/hooks-mut-traps"]
+
+[dependencies]
+gecko = { path = "../gecko-core", features = ["hooks"] }
+mlua = { version = "0.10.5", features = ["luau-jit", "send", "vendored"] }
+tracing = "0.1.44"
+
+
+

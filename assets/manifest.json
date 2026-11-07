@@ -1,0 +1,144 @@
+{
+  "schemaVersion": "2.0.0",
+  "generatedAt": "2026-11-03T00:04:41.175Z",
+  "system": {
+    "name": "Nintendo Wii System Menu 4.3E",
+    "titleId": "0000000100000002",
+    "titleVersion": 514,
+    "requiredIos": "IOS80 (0000000100000050)",
+    "region": "PAL / Europe",
+    "originWad": "userland/data/wii/wads/System Software/SystemMenu-v514.wad"
+  },
+  "assetSummary": {
+    "totalAssets": 13,
+    "totalBytes": 27889885,
+    "categories": {
+      "typography": 3,
+      "audio": 2,
+      "localization": 2,
+      "models": 1,
+      "tokens": 2,
+      "nativeBinary": 1,
+      "browserEngine": 2
+    }
+  },
+  "assets": [
+    {
+      "path": "assets/system-menu/audio/IplSound.brsar",
+      "filename": "IplSound.brsar",
+      "extension": ".brsar",
+      "role": "audio",
+      "bytes": 2927232,
+      "sha256": "78c62ce1df5198bd4bb87284c6a8943ff5bb6fca7de7805080271d534d52bd78",
+      "md5": "20411f065cb1d3a80341472531e69628"
+    },
+    {
+      "path": "assets/system-menu/audio/sound_symbols.json",
+      "filename": "sound_symbols.json",
+      "extension": ".json",
+      "role": "audio",
+      "bytes": 2708,
+      "sha256": "b8acf2faf1e4f5f293819e3bc151190f61af29a98a1a9c245057bad9128224fc",
+      "md5": "489ae6e9260295dc0afae50ecf24c5dc"
+    },
+    {
+      "path": "assets/system-menu/browser/wwwlib-rvl.bin",
+      "filename": "wwwlib-rvl.bin",
+      "extension": ".bin",
+      "role": "opera_engine",
+      "bytes": 9446432,
+      "sha256": "5f3a44ccc127fd153c90eae8e876cda3582ce65c9dfca61f864088fd2a1d1f0b",
+      "md5": "fa80abc41e74a27b65a81809146b32d5"
+    },
+    {
+      "path": "assets/system-menu/browser/wwwlib-rvl.lz7",
+      "filename": "wwwlib-rvl.lz7",
+      "extension": ".lz7",
+      "role": "opera_engine",
+      "bytes": 4559791,
+      "sha256": "d7f6cb8dc16e95448306ae7abfab2e722e63598e401ebfd08726048aa80688c0",
+      "md5": "f9f9f79c06c41c9040a6f7e3a12e67b9"
+    },
+    {
+      "path": "assets/system-menu/executable/main.dol",
+      "filename": "main.dol",
+      "extension": ".dol",
+      "role": "native_binary",
+      "bytes": 3867904,
+      "sha256": "04b0703ba30bb08886db4fe204f1473c3c61170f869cc1615d76ed367d621853",
+      "md5": "9031efbf4034780835b1dd2fd871c530"
+    },
+    {
+      "path": "assets/system-menu/fonts/wbf1.brfna",
+      "filename": "wbf1.brfna",
+      "extension": ".brfna",
+      "role": "typography",
+      "bytes": 1839732,
+      "sha256": "cf0e4f41fd53bd9b68b4a0691795060b3ea2120d8bf60eb825a718cb0611b596",
+      "md5": "2036616c38d836e6fb6553ef683df341"
+    },
+    {
+      "path": "assets/system-menu/fonts/wbf2.brfna",
+      "filename": "wbf2.brfna",
+      "extension": ".brfna",
+      "role": "typography",
+      "bytes": 1809180,
+      "sha256": "a41abda00977b96bc09effbafd393cfa949e93504b875aa86c5e1d7741115d3a",
+      "md5": "d8ab683ff35daf6f5c23498098f669a7"
+    },
+    {
+      "path": "assets/system-menu/fonts/WiiNTLG-Regular.ttc",
+      "filename": "WiiNTLG-Regular.ttc",
+      "extension": ".ttc",
+      "role": "typography",
+      "bytes": 2668948,
+      "sha256": "006abc0517bba72d6135ad1d04f911e99fafc6f6aff27ce71917a38acd8803f2",
+      "md5": "4867fa32c32836666544002f99824c8c"
+    },
+    {
+      "path": "assets/system-menu/locales/ipl_common_noe.bmg",
+      "filename": "ipl_common_noe.bmg",
+      "extension": ".bmg",
+      "role": "localization",
+      "bytes": 57088,
+      "sha256": "a95215f345c40f9820b5a54f0f422995b154582fcbd29d528f0946cb7f2540dc",
+      "md5": "c81ddf51d1f1fc005edd0d3eac49ff83"
+    },
+    {
+      "path": "assets/system-menu/locales/strings_fra.json",
+      "filename": "strings_fra.json",
+      "extension": ".json",
+      "role": "localization",
+      "bytes": 22749,
+      "sha256": "6957d62f81b51cc03e9e3349323c301e63524f8ed01286cac6a46bc8e4da78d8",
+      "md5": "582c1290488ade76d18c866f80c3c023"
+    },
+    {
+      "path": "assets/system-menu/models/RFL_Res.dat",
+      "filename": "RFL_Res.dat",
+      "extension": ".dat",
+      "role": "3d_geometry",
+      "bytes": 686372,
+      "sha256": "7af8e9389f27b7adefb05d883c1bef76865a30d026d9754640c6413f56417223",
+      "md5": "7b8ec57cd893af51b3dd295941fed906"
+    },
+    {
+      "path": "assets/system-menu/tokens/tokens.css",
+      "filename": "tokens.css",
+      "extension": ".css",
+      "role": "design_tokens",
+      "bytes": 784,
+      "sha256": "525a7310fe82c5e50369da8c7ff2dfd7b272dc9b8d0dbc62a994fd550f78d6d6",
+      "md5": "4cf5ba9b5084ecd822fd132ff385e1ae"
+    },
+    {
+      "path": "assets/system-menu/tokens/tokens.json",
+      "filename": "tokens.json",
+      "extension": ".json",
+      "role": "design_tokens",
+      "bytes": 965,
+      "sha256": "ae09843fd72d7ef026d795803feca66c80962370cb2677b17893e44327da5797",
+      "md5": "e279c8a2d0bb03567883c3472b506592"
+    }
+  ]
+}

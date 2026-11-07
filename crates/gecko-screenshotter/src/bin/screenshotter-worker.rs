@@ -1,0 +1,178 @@
+use backend_wgpu::sink::{InlineSink, TargetAspect};
+use backend_wgpu::{GxRenderer, capture};
+use gecko::HostInput;
+use gecko::flipper::si::pad;
+use gecko::flipper::vi::regs::RefreshRate;
+use gecko::gamecube::GameCube;
+use gecko::hollywood::ipc::usb as wiimote;
+use gecko::system::{System, SystemId};
+use gecko::wii::Wii;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+
+fn take_screenshot(device: &wgpu::Device, queue: &wgpu::Queue, gx: &GxRenderer, code: &str, frame: u32, is_wii: bool) {
+    let _ = device.poll(wgpu::PollType::Wait {
+        submission_index: None,
+        timeout: None,
+    });
+
+    let captured = capture::capture_texture(device, queue, &gx.xfb_texture)
+        .expect("capture_texture returned None")
+        .with_aspect(TargetAspect::auto(is_wii));
+
+    let path = format!("screenshotdb/{}/{}.png", code, frame);
+    capture::write_png(std::path::Path::new(&path), captured, true).expect("Failed to write PNG");
+}
+
+fn main() {
+    let file = PathBuf::from(
+        std::env::args()
+            .nth(1)
+            .expect("worker requires a path to a single ISO/RVZ/ZIP"),
+    );
+
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
+        backends: wgpu::Backends::all().with_env(),
+        ..wgpu::InstanceDescriptor::new_without_display_handle()
+    });
+    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::default(),
+        compatible_surface: None,
+        force_fallback_adapter: false,
+    }))
+    .expect("no compatible wgpu adapter");
+    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
+        .expect("failed to acquire wgpu device");
+
+    let surface_format = wgpu::TextureFormat::Rgba8Unorm;
+
+    run_one(&device, &queue, surface_format, &file);
+}
+
+fn run_one(device: &wgpu::Device, queue: &wgpu::Queue, surface_format: wgpu::TextureFormat, file: &std::path::Path) {
+    let buffer = std::fs::read(file).expect("Failed to read the file");
+    let image = image::load_dvd(buffer);
+
+    let name = String::from_utf8_lossy(&image.header().game_name);
+    let name = name.trim_end_matches('\0').to_owned();
+    let code = image.header().game_id();
+    let is_wii = image.header().is_wii();
+    println!("Running: {} ({}) [{}]", name, code, if is_wii { "Wii" } else { "GC" });
+
+    let out_dir = format!("screenshotdb/{}", code);
+    std::fs::create_dir_all(&out_dir).expect("Failed to create screenshotdb directory");
+
+    // let log_file = std::fs::File::create(format!("{}/log.txt", out_dir)).expect("Failed to create log file");
+    // let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+    //     .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn"));
+    // tracing_subscriber::fmt()
+    //     .without_time()
+    //     .with_ansi(false)
+    //     .with_env_filter(env_filter)
+    //     .with_writer(Mutex::new(log_file))
+    //     .init();
+
+    // let prev_hook = std::panic::take_hook();
+    // std::panic::set_hook(Box::new(move |info| {
+    //     tracing::error!("{info}");
+    //     prev_hook(info);
+    // }));
+
+    let (gx, sink) = InlineSink::new(device.clone(), queue.clone(), surface_format);
+
+    if is_wii {
+        let mut wii = Wii::apploader_hle(image).build();
+        wii.render_sink = Box::new(sink);
+        drive(
+            &mut wii,
+            device,
+            queue,
+            &gx,
+            &code,
+            HostInput::wii_neutral(),
+            update_wii_input,
+        );
+    } else {
+        let mut gamecube = GameCube::with_ipl_hle(image);
+        gamecube.render_sink = Box::new(sink);
+        drive(
+            &mut gamecube,
+            device,
+            queue,
+            &gx,
+            &code,
+            HostInput::gc_connected(),
+            update_gc_input,
+        );
+    }
+}
+
+fn drive<const SYSTEM: SystemId>(
+    emu: &mut System<SYSTEM>,
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    gx: &Arc<Mutex<GxRenderer>>,
+    code: &str,
+    mut input: HostInput,
+    mut update_input: impl FnMut(&mut HostInput, usize),
+) {
+    emu.apply_host_input(&input);
+
+    let framerate = match emu.vi.dcr.video_format().refresh_rate() {
+        RefreshRate::Hz50 => 50,
+        RefreshRate::Hz60 => 60,
+    };
+
+    // Preliminary for IPL skip / boot settle.
+    for _ in 0..framerate {
+        emu.run_until_vsync();
+    }
+
+    let mut frame: u32 = framerate * 2;
+    {
+        let g = gx.lock().unwrap();
+        take_screenshot(device, queue, &g, code, frame, SYSTEM == gecko::system::WII);
+    }
+
+    for idx in 0..20 {
+        update_input(&mut input, idx);
+        emu.apply_host_input(&input);
+
+        for _ in 0..(framerate * 2) {
+            emu.run_until_vsync();
+            frame += 1;
+        }
+
+        let g = gx.lock().unwrap();
+        take_screenshot(device, queue, &g, code, frame, SYSTEM == gecko::system::WII);
+    }
+}
+
+fn update_gc_input(input: &mut HostInput, idx: usize) {
+    let HostInput::Gc(pad) = input else {
+        return;
+    };
+    pad.stick_y = pad::STICK_CENTER;
+    pad.buttons = if idx % 2 == 0 { pad::A } else { pad::START };
+}
+
+fn update_wii_input(input: &mut HostInput, idx: usize) {
+    let HostInput::Wii {
+        wiimote_buttons,
+        nunchuk_buttons,
+        nunchuk_stick_x,
+        nunchuk_stick_y,
+        ..
+    } = input
+    else {
+        return;
+    };
+    *nunchuk_buttons = 0;
+    *nunchuk_stick_x = wiimote::NUNCHUK_STICK_CENTER;
+    *nunchuk_stick_y = wiimote::NUNCHUK_STICK_CENTER;
+    *wiimote_buttons = if idx % 2 == 0 {
+        wiimote::BTN_A
+    } else {
+        wiimote::BTN_PLUS
+    };
+}

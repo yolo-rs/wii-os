@@ -1,0 +1,57 @@
+[package]
+name = "gecko-web"
+version = "0.1.0"
+license = "GPL-3.0-only"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+debug = ["dep:dbglib", "dep:egui-phosphor"]
+
+[dependencies]
+gecko = { path = "../gecko-core", default-features = false }
+image = { path = "../gecko-image", default-features = false, features = ["rvz"] }
+backend-wgpu = { path = "../gecko-backend-wgpu" }
+dbglib = { path = "../gecko-dbglib", optional = true }
+egui-phosphor = { version = "0.12.0", optional = true, features = ["fill"] }
+wgpu = "=29.0.3"
+winit = { version = "0.30.13", features = ["rwh_06"] }
+egui = "=0.34.2"
+egui-wgpu = "=0.34.2"
+egui-winit = { version = "=0.34.2", default-features = false, features = ["links"] }
+wasm-bindgen = "=0.2.108"
+wasm-bindgen-futures = "=0.4.58"
+web-sys = { version = "=0.3.85", features = [
+    "Document",
+    "Window",
+    "Location",
+    "Element",
+    "HtmlCanvasElement",
+    "HtmlInputElement",
+    "File",
+    "FileReader",
+    "Blob",
+    "Event",
+    "Performance",
+    "Navigator",
+    "Gamepad",
+    "GamepadButton",
+    "GamepadMappingType",
+    "AudioContext",
+    "AudioBuffer",
+    "AudioBufferSourceNode",
+    "AudioDestinationNode",
+    "AudioNode",
+    "console",
+] }
+console_error_panic_hook = "0.1.7"
+getrandom = { version = "0.3.4", features = ["wasm_js"] }
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+
+
+

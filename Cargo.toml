@@ -1,0 +1,101 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/menu-core",
+    "crates/menu-runtime",
+    "crates/menu-web",
+    "dolphin-ffi",
+    "apps/menu-native",
+    "apps/menu-gtk",
+    "apps/server",
+    "apps/cli",
+    "crates/gecko-multitool",
+    "crates/gecko-disasm",
+    "crates/gecko-core",
+    "crates/gecko-image",
+    "crates/gecko-tinyapp",
+    "crates/gecko-app",
+    "crates/gecko-backend-wgpu",
+    "crates/gecko-scripting",
+    "crates/gecko-dbglib",
+    "crates/gecko-debugger",
+    "crates/gecko-dff",
+    "crates/gecko-fifoplayer",
+    "crates/gecko-mcp",
+    "crates/gecko-hostinput",
+    "crates/gecko-dsptestrunner",
+    "crates/gecko-screenshotter",
+    "crates/gecko-dspemu",
+    "crates/gecko-tinytracer",
+    "crates/gecko-tinybench",
+    "crates/gecko-web",
+]
+default-members = [
+    "crates/menu-core",
+    "crates/menu-runtime",
+    "crates/menu-web",
+    "dolphin-ffi",
+    "apps/menu-native",
+    "apps/menu-gtk",
+    "apps/server",
+    "apps/cli",
+    "crates/gecko-multitool",
+    "crates/gecko-disasm",
+    "crates/gecko-core",
+    "crates/gecko-image",
+    "crates/gecko-tinyapp",
+    "crates/gecko-app",
+    "crates/gecko-backend-wgpu",
+    "crates/gecko-scripting",
+    "crates/gecko-mcp",
+    "crates/gecko-hostinput",
+    "crates/gecko-debugger",
+]
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wii-menu-core = { path = "crates/menu-core" }
+wii-menu-runtime = { path = "crates/menu-runtime" }
+wii-dolphin-ffi = { path = "dolphin-ffi" }
+
+[patch.crates-io]
+cranelift-codegen = { git = "https://github.com/ioncodes/wasmtime", branch = "gecko" }
+cranelift-frontend = { git = "https://github.com/ioncodes/wasmtime", branch = "gecko" }
+cranelift-jit = { git = "https://github.com/ioncodes/wasmtime", branch = "gecko" }
+cranelift-module = { git = "https://github.com/ioncodes/wasmtime", branch = "gecko" }
+cranelift-native = { git = "https://github.com/ioncodes/wasmtime", branch = "gecko" }
+iced_core = { git = "https://github.com/iced-rs/iced.git", rev = "0d12e964da8c3f0f7a02d3d731e3187eecfe5779" }
+iced_widget = { git = "https://github.com/iced-rs/iced.git", rev = "0d12e964da8c3f0f7a02d3d731e3187eecfe5779" }
+iced_runtime = { git = "https://github.com/iced-rs/iced.git", rev = "0d12e964da8c3f0f7a02d3d731e3187eecfe5779" }
+iced_graphics = { git = "https://github.com/iced-rs/iced.git", rev = "0d12e964da8c3f0f7a02d3d731e3187eecfe5779" }
+iced_renderer = { git = "https://github.com/iced-rs/iced.git", rev = "0d12e964da8c3f0f7a02d3d731e3187eecfe5779" }
+iced_winit = { git = "https://github.com/iced-rs/iced.git", rev = "0d12e964da8c3f0f7a02d3d731e3187eecfe5779" }
+iced_wgpu = { git = "https://github.com/iced-rs/iced.git", rev = "0d12e964da8c3f0f7a02d3d731e3187eecfe5779" }
+iced_tiny_skia = { git = "https://github.com/iced-rs/iced.git", rev = "0d12e964da8c3f0f7a02d3d731e3187eecfe5779" }
+iced_futures = { git = "https://github.com/iced-rs/iced.git", rev = "0d12e964da8c3f0f7a02d3d731e3187eecfe5779" }
+iced_program = { git = "https://github.com/iced-rs/iced.git", rev = "0d12e964da8c3f0f7a02d3d731e3187eecfe5779" }
+iced_debug = { git = "https://github.com/iced-rs/iced.git", rev = "0d12e964da8c3f0f7a02d3d731e3187eecfe5779" }
+wgpu = { git = "https://github.com/ioncodes/wgpu", branch = "gecko" }
+wgpu-core = { git = "https://github.com/ioncodes/wgpu", branch = "gecko" }
+wgpu-hal = { git = "https://github.com/ioncodes/wgpu", branch = "gecko" }
+wgpu-types = { git = "https://github.com/ioncodes/wgpu", branch = "gecko" }
+wgpu-naga-bridge = { git = "https://github.com/ioncodes/wgpu", branch = "gecko" }
+naga = { git = "https://github.com/ioncodes/wgpu", branch = "gecko" }
+wgpu-core-deps-apple = { git = "https://github.com/ioncodes/wgpu", branch = "gecko" }
+wgpu-core-deps-emscripten = { git = "https://github.com/ioncodes/wgpu", branch = "gecko" }
+wgpu-core-deps-wasm = { git = "https://github.com/ioncodes/wgpu", branch = "gecko" }
+wgpu-core-deps-windows-linux-android = { git = "https://github.com/ioncodes/wgpu", branch = "gecko" }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+
+[profile.dev]
+opt-level = 3
+

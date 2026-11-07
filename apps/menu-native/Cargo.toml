@@ -1,0 +1,31 @@
+[package]
+name = "wii-menu-native"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+description = "Native wgpu menu host consuming the shared Wii OS menu core"
+
+[lib]
+name = "wii_menu_native"
+path = "src/lib.rs"
+
+[[bin]]
+name = "wii-menu-native"
+path = "src/main.rs"
+
+[dependencies]
+bytemuck = { version = "1.25.0", features = ["derive"] }
+gilrs = "0.11.2"
+image = { version = "0.25.9", default-features = false, features = ["jpeg", "png"] }
+pollster = "0.4.0"
+raw-window-handle = "0.6.2"
+serde_json.workspace = true
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
+wgpu = "29.0.3"
+wii-menu-core.workspace = true
+wii-menu-runtime.workspace = true
+winit = "0.30.13"
+
+[features]
+default = []
+embedded-dolphin = ["wii-menu-runtime/embedded-dolphin"]

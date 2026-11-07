@@ -1,0 +1,16 @@
+#ifndef IPL_UTILITY_WPAD_H
+#define IPL_UTILITY_WPAD_H
+
+#include <revolution/kpad.h>
+#include <revolution/types.h>
+
+namespace ipl {
+    namespace utility {
+        namespace wpad {
+            u32 getWpadConnectedMask();
+            BOOL isIncreaseConnectedWpad(u32 prevMask, u32 nextMask);
+        }  // namespace wpad
+    }  // namespace utility
+}  // namespace ipl
+
+#endif  // IPL_UTILITY_WPAD_H

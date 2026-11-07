@@ -1,0 +1,17 @@
+[package]
+name = "tinybench"
+version = "0.1.0"
+license = "GPL-3.0-only"
+edition = "2024"
+
+[features]
+default = ["gecko/rendersink-blackbox"]
+jit-stats = ["gecko/jit-stats"]
+
+[dependencies]
+gecko = { path = "../gecko-core" }
+image = { path = "../gecko-image" }
+clap = { version = "4.6.0", features = ["derive"] }
+
+
+

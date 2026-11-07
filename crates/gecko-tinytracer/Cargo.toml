@@ -1,0 +1,22 @@
+[package]
+name = "tinytracer"
+version = "0.1.0"
+license = "GPL-3.0-only"
+edition = "2024"
+
+[features]
+hooks = ["gecko/hooks", "dep:scripting"]
+hooks-mut-traps = ["hooks", "gecko/hooks-mut-traps", "scripting/hooks-mut-traps"]
+
+[dependencies]
+gecko = { path = "../gecko-core" }
+scripting = { path = "../gecko-scripting", optional = true }
+image = { path = "../gecko-image" }
+colored = "3.1.1"
+disasm = { path = "../gecko-disasm" }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+base64 = "0.22.1"
+clap = { version = "4.6.0", features = ["derive"] }
+
+
+

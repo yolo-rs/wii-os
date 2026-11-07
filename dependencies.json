@@ -1,0 +1,627 @@
+{
+  "schemaVersion": 2,
+  "platforms": [
+    "windows-x64",
+    "linux-x64",
+    "web-wasm32-webgpu",
+    "wii-powerpc"
+  ],
+  "workspace": ".",
+  "repositories": [
+    {
+      "name": "decomp-toolkit",
+      "manifests": [
+        "Cargo.toml",
+        "Cargo.lock",
+        ".github/workflows/build.yml"
+      ],
+      "hostDependencies": [
+        "rust",
+        "cargo",
+        "git"
+      ],
+      "nativeDependencies": [],
+      "setup": "Use the committed Cargo.lock; Rust 1.85+; no generated inputs.",
+      "build": "cargo build --release",
+      "artifacts": [
+        "target/release/dtk"
+      ],
+      "scope": [
+        "wii",
+        "apps",
+        "wad",
+        "windows",
+        "linux"
+      ],
+      "gate": "Cargo dependencies may require network on first build.",
+      "platformTargets": {
+        "windows-x64": "Rust native MSVC build",
+        "linux-x64": "Rust native Linux build"
+      }
+    },
+    {
+      "name": "wadlib",
+      "manifests": [
+        "go.mod",
+        "go.sum"
+      ],
+      "hostDependencies": [
+        "go",
+        "git"
+      ],
+      "nativeDependencies": [],
+      "setup": "Use the Go module; Go 1.17+.",
+      "build": "go build ./...",
+      "artifacts": [
+        "Go package/library"
+      ],
+      "scope": [
+        "wii",
+        "wad",
+        "windows",
+        "linux"
+      ],
+      "gate": "Go module dependencies may require network on first build.",
+      "platformTargets": {
+        "windows-x64": "Go compile",
+        "linux-x64": "Go compile",
+        "web-wasm32-webgpu": "No browser app target"
+      }
+    },
+    {
+      "name": "wiimms-iso-tools",
+      "manifests": [
+        "project/Makefile",
+        ".github/workflows/make.yml"
+      ],
+      "hostDependencies": [
+        "make",
+        "gcc",
+        "g++",
+        "perl",
+        "bash"
+      ],
+      "nativeDependencies": [
+        "zlib",
+        "bzip2",
+        "openssl",
+        "libpng",
+        "libreadline",
+        "libncurses"
+      ],
+      "setup": "Legacy generated setup and source provenance are not reproducible from this checkout; inspect project/README and CI configuration first.",
+      "build": "make -C project",
+      "artifacts": [
+        "wit",
+        "wwt",
+        "wdf"
+      ],
+      "scope": [
+        "wii",
+        "wad"
+      ],
+      "gate": "Gated: generated setup/private SVN provenance and GPL redistribution review.",
+      "platformTargets": {
+        "windows-x64": "Build depends on repository adapter and native dependencies",
+        "linux-x64": "Build depends on repository adapter and native dependencies",
+        "web-wasm32-webgpu": "No browser/WebGPU target identified"
+      }
+    },
+    {
+      "name": "wii",
+      "manifests": [
+        "README.md"
+      ],
+      "hostDependencies": [],
+      "nativeDependencies": [],
+      "setup": "No build configuration; walk paths without opening or copying payloads.",
+      "build": "Metadata-only recursive file index",
+      "artifacts": [
+        "wii-archive-index.tsv"
+      ],
+      "scope": [
+        "wii"
+      ],
+      "gate": "No binaries are extracted or redistributed; verify provenance/license per item.",
+      "platformTargets": {
+        "windows-x64": "Build depends on repository adapter and native dependencies",
+        "linux-x64": "Build depends on repository adapter and native dependencies",
+        "web-wasm32-webgpu": "No browser/WebGPU target identified"
+      }
+    },
+    {
+      "name": "wii-examples",
+      "manifests": [
+        "Makefile",
+        "**/Makefile",
+        "templates/makefile/library/Makefile"
+      ],
+      "hostDependencies": [
+        "Linux devkitPro pacman",
+        "devkitPPC",
+        "libogc",
+        "make"
+      ],
+      "nativeDependencies": [],
+      "setup": "Install and verify devkitPPC/libogc separately; export DEVKITPRO and DEVKITPPC. Each nested Makefile imports $(DEVKITPPC)/wii_rules.",
+      "build": "make -C sources/wii-examples",
+      "artifacts": [
+        ".dol",
+        ".elf",
+        "bin/"
+      ],
+      "scope": [
+        "wii",
+        "homebrew"
+      ],
+      "gate": "Skipped until DEVKITPPC, powerpc-eabi-gcc and libogc are verified.",
+      "platformTargets": {
+        "windows-x64": "MSYS2/devkitPro PPC cross-toolchain, not MSVC",
+        "linux-x64": "devkitPro PPC cross-compiler and libogc",
+        "web-wasm32-webgpu": "Not a browser target; outputs PowerPC .dol/.elf"
+      }
+    },
+    {
+      "name": "wii-ipl",
+      "manifests": [
+        "configure.py",
+        "tools/",
+        ".github/workflows/build.yml"
+      ],
+      "hostDependencies": [
+        "python",
+        "ninja",
+        "wibo"
+      ],
+      "nativeDependencies": [
+        "project binutils",
+        "project compiler toolchain"
+      ],
+      "setup": "Stage source and operator-supplied WAD/assets in a disposable tree; never configure in the source checkout.",
+      "build": "python configure.py --map --version 43U --binutils /binutils --compilers /compilers; ninja all_source progress build/43U/report.json",
+      "artifacts": [
+        "main.dol",
+        "build/43U/report.json"
+      ],
+      "scope": [
+        "wii",
+        "wad",
+        "homebrew"
+      ],
+      "gate": "Requires explicit operator WAD and project compiler container/toolchain; no download or build is automatic.",
+      "platformTargets": {
+        "windows-x64": "Build depends on repository adapter and native dependencies",
+        "linux-x64": "Build depends on repository adapter and native dependencies",
+        "web-wasm32-webgpu": "No browser/WebGPU target identified"
+      }
+    },
+    {
+      "name": "gecko",
+      "manifests": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "crates/gecko-core/Cargo.toml",
+        "crates/gecko-app/Cargo.toml",
+        "crates/gecko-core/LICENSE",
+        "crates/gecko-core/SOURCE-REVISION.txt"
+      ],
+      "hostDependencies": [
+        "rust",
+        "cargo",
+        "git",
+        "mold"
+      ],
+      "nativeDependencies": [
+        "alsa-lib",
+        "pipewire",
+        "libpulse",
+        "jack",
+        "sndio",
+        "fribidi",
+        "xorg-libx11",
+        "libxkbcommon",
+        "libdrm",
+        "mesa",
+        "systemd-libs",
+        "libusb",
+        "wayland",
+        "libdecor",
+        "liburing",
+        "libthai",
+        "ibus"
+      ],
+      "setup": "Use Gecko's extracted crates in the single Wii OS root Cargo workspace; instruction specs and runtime assets are in the product tree.",
+      "build": "cargo build --locked --release -p gecko-app -p tinyapp -p fifoplayer -p debugger -p multitool",
+      "artifacts": [
+        "release emulator/tools"
+      ],
+      "scope": [
+        "apps",
+        "windows",
+        "linux"
+      ],
+      "platformTargets": {
+        "windows-x64": "Native renderer; in-product source snapshot and Windows graphics/audio",
+        "linux-x64": "Native renderer; in-product source snapshot and Linux graphics/audio",
+        "web-wasm32-webgpu": "Use separate gecko-web wasm32 browser renderer"
+      },
+      "gate": "Not a Wii app compiler; emulator runtime. Source, required specs and assets are consolidated in Wii OS."
+    },
+    {
+      "name": "gecko-web",
+      "manifests": [
+        "Cargo.toml",
+        "crates/gecko-web/Cargo.toml",
+        "crates/gecko-web/index.html"
+      ],
+      "hostDependencies": [
+        "rust",
+        "cargo",
+        "wasm32-unknown-unknown target",
+        "wasm-pack",
+        "git"
+      ],
+      "nativeDependencies": [],
+      "setup": "Build the in-product Gecko WebAssembly crate with wasm32-unknown-unknown and wasm-pack; serve generated ES module/WASM over HTTP(S) in a browser with WebGPU.",
+      "build": "wasm-pack build crates/gecko-web --target web --out-dir <run-output>/pkg --out-name gecko_web --release",
+      "artifacts": [
+        "pkg/gecko_web.js",
+        "pkg/gecko_web_bg.wasm",
+        "static site staged from crates/gecko-web/index.html"
+      ],
+      "scope": [
+        "apps",
+        "webgpu",
+        "wasm"
+      ],
+      "gate": "Dedicated wasm-pack build; requires wasm32-unknown-unknown, wasm-pack, browser WebGPU support and secure-context hosting.",
+      "platformTargets": {
+        "windows-x64": "Build depends on repository adapter and native dependencies",
+        "linux-x64": "Build depends on repository adapter and native dependencies",
+        "web-wasm32-webgpu": "No browser/WebGPU target identified"
+      }
+    },
+    {
+      "name": "dolphin",
+      "sourceRoot": "wii-os/src/dolphin",
+      "manifests": [
+        "CMakeLists.txt",
+        ".gitmodules",
+        "Readme.md"
+      ],
+      "hostDependencies": [
+        "cmake>=3.25",
+        "ninja",
+        "gcc",
+        "g++",
+        "mold"
+      ],
+      "nativeDependencies": [
+        "alsa-lib",
+        "pipewire",
+        "libpulse",
+        "jack",
+        "sndio",
+        "fribidi",
+        "libx11",
+        "libxrandr",
+        "libxext",
+        "libxrender",
+        "libxi",
+        "libxfixes",
+        "libxkbcommon",
+        "libdrm",
+        "mesa",
+        "systemd-libs",
+        "libusb",
+        "wayland",
+        "libdecor",
+        "liburing",
+        "libthai",
+        "ibus"
+      ],
+      "setup": "Use the patched Dolphin source snapshot embedded at src/dolphin; its upstream commit is recorded in SOURCE-REVISION.txt and initialized pinned externals are included locally.",
+      "build": "cmake -S src/dolphin -B userland/build/targets/dolphin -G Ninja; cmake --build userland/build/targets/dolphin --parallel",
+      "artifacts": [
+        "DolphinNoGUI runtime",
+        "wii_dolphin_ffi.dll (Windows in-process ABI)"
+      ],
+      "scope": [
+        "apps"
+      ],
+      "gate": "Validation emulator, not a Wii app compiler; the local source snapshot and required external source trees gate build. Windows builds the Rust-facing in-process ABI DLL.",
+      "platformTargets": {
+        "windows-x64": "Build depends on repository adapter and native dependencies",
+        "linux-x64": "Build depends on repository adapter and native dependencies",
+        "web-wasm32-webgpu": "No browser/WebGPU target identified"
+      }
+    },
+    {
+      "name": "smithay",
+      "manifests": [
+        "Cargo.toml",
+        "Cargo.lock",
+        ".github/workflows/ci.yml"
+      ],
+      "hostDependencies": [
+        "rust>=1.87",
+        "cargo"
+      ],
+      "nativeDependencies": [
+        "libdrm",
+        "systemd-libs",
+        "mesa",
+        "libxkbcommon",
+        "wayland",
+        "libinput",
+        "dbus",
+        "seatd",
+        "libdisplay-info"
+      ],
+      "setup": "Install the repository's native development dependencies on a Linux build host.",
+      "build": "cargo check --features test_all_features",
+      "artifacts": [
+        "Rust library check"
+      ],
+      "scope": [
+        "linux"
+      ],
+      "gate": "Linux compositor library; outside Wii PowerPC target.",
+      "platformTargets": {
+        "windows-x64": "Unsupported",
+        "linux-x64": "Native supported target",
+        "web-wasm32-webgpu": "Unsupported: compositor native APIs"
+      }
+    },
+    {
+      "name": "wayland-rs",
+      "manifests": [
+        "Cargo.toml",
+        "Cargo.lock",
+        ".gitmodules",
+        ".github/workflows/ci.yml"
+      ],
+      "hostDependencies": [
+        "rust",
+        "cargo",
+        "git"
+      ],
+      "nativeDependencies": [
+        "wayland"
+      ],
+      "setup": "Initialize pinned submodules after explicit approval; install Wayland development headers.",
+      "build": "cargo check --workspace",
+      "artifacts": [
+        "Rust client/server crates"
+      ],
+      "scope": [
+        "linux"
+      ],
+      "gate": "Linux protocol crates; outside Wii PowerPC target.",
+      "platformTargets": {
+        "windows-x64": "Unsupported",
+        "linux-x64": "Native supported target",
+        "web-wasm32-webgpu": "Unsupported: Wayland native APIs"
+      }
+    },
+    {
+      "name": "komorebi",
+      "manifests": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "justfile",
+        ".github/workflows/windows.yaml"
+      ],
+      "hostDependencies": [
+        "Windows",
+        "MSVC",
+        "rust"
+      ],
+      "nativeDependencies": [
+        "Windows DWM/Win32 SDK"
+      ],
+      "setup": "Keep the existing dirty dependencies.json untouched; use per-package workspace targets.",
+      "build": "cargo build --locked --release --no-default-features -p <package>",
+      "artifacts": [
+        "Windows desktop packages"
+      ],
+      "scope": [
+        "windows"
+      ],
+      "gate": "Windows-only.",
+      "platformTargets": {
+        "windows-x64": "Native supported target",
+        "linux-x64": "Unsupported: Windows DWM/Win32",
+        "web-wasm32-webgpu": "Unsupported: native desktop shell"
+      }
+    },
+    {
+      "name": "yasb",
+      "manifests": [
+        "pyproject.toml",
+        "src/core/widgets/services/systray/hook/CMakeLists.txt",
+        "Windows workflow"
+      ],
+      "hostDependencies": [
+        "Windows",
+        "Python>=3.14",
+        "MSVC",
+        "CMake"
+      ],
+      "nativeDependencies": [
+        "Windows WinRT",
+        "PyQt6",
+        "Windows SDK"
+      ],
+      "setup": "Install the pinned pyproject dependencies on Windows; WinRT/pycaw/comtypes require Windows.",
+      "build": "Windows wheel/package workflow; separately configure/build trayhook with MSVC CMake.",
+      "artifacts": [
+        "YASB package",
+        "YASBTrayHook.dll"
+      ],
+      "scope": [
+        "windows"
+      ],
+      "gate": "Windows-only Python >=3.14 and WinRT.",
+      "platformTargets": {
+        "windows-x64": "Native supported target with WinRT/MSVC",
+        "linux-x64": "Unsupported: WinRT/pycaw/comtypes",
+        "web-wasm32-webgpu": "Unsupported: native tray and WinRT"
+      }
+    },
+    {
+      "name": "room-server",
+      "manifests": [
+        "requirements.txt",
+        "Dockerfile",
+        "config-example.py"
+      ],
+      "hostDependencies": [
+        "Docker/OCI",
+        "Python 3.10 Alpine",
+        "git",
+        "build-base",
+        "libpq-dev"
+      ],
+      "nativeDependencies": [
+        "PostgreSQL",
+        "OIDC provider",
+        "S3-compatible storage"
+      ],
+      "setup": "Provision service secrets/config externally; image installs requirements.txt and gunicorn.",
+      "build": "docker build -t wii-room-server sources/room-server",
+      "artifacts": [
+        "OCI image"
+      ],
+      "scope": [
+        "all"
+      ],
+      "gate": "Service runtime configuration and external services required.",
+      "platformTargets": {
+        "windows-x64": "Build depends on repository adapter and native dependencies",
+        "linux-x64": "Build depends on repository adapter and native dependencies",
+        "web-wasm32-webgpu": "No browser/WebGPU target identified"
+      }
+    },
+    {
+      "name": "wfc-server",
+      "manifests": [
+        "go.mod",
+        "go.sum",
+        "config_example.xml",
+        ".golangci.yml",
+        ".github/workflows/build.yml"
+      ],
+      "hostDependencies": [
+        "go>=1.25"
+      ],
+      "nativeDependencies": [],
+      "setup": "Copy and fill config_example.xml into external runtime config; do not start the network service in build profile.",
+      "build": "go build -o wwfc .",
+      "artifacts": [
+        "wwfc"
+      ],
+      "scope": [
+        "all"
+      ],
+      "gate": "Service/database/network execution requires separate config.",
+      "platformTargets": {
+        "windows-x64": "Build depends on repository adapter and native dependencies",
+        "linux-x64": "Build depends on repository adapter and native dependencies",
+        "web-wasm32-webgpu": "No browser/WebGPU target identified"
+      }
+    },
+    {
+      "name": "Wii-Rom-Downloader",
+      "manifests": [
+        "pyproject.toml",
+        "workflow"
+      ],
+      "hostDependencies": [
+        "Python>=3.8",
+        "hatchling",
+        "requests",
+        "beautifulsoup4",
+        "cloudscraper",
+        "py7zr",
+        "playwright",
+        "tqdm"
+      ],
+      "nativeDependencies": [],
+      "setup": "Package-only in an isolated environment; never invoke the downloader or browser in the unified build.",
+      "build": "uv build --wheel --out-dir <run-output>",
+      "artifacts": [
+        "wheel"
+      ],
+      "scope": [
+        "all"
+      ],
+      "gate": "External download execution is excluded; runtime dependencies require reviewed package source.",
+      "platformTargets": {
+        "windows-x64": "Build depends on repository adapter and native dependencies",
+        "linux-x64": "Build depends on repository adapter and native dependencies",
+        "web-wasm32-webgpu": "No browser/WebGPU target identified"
+      }
+    },
+    {
+      "name": "Wii.JS",
+      "manifests": [
+        "README.md"
+      ],
+      "hostDependencies": [],
+      "nativeDependencies": [],
+      "setup": "No package manifest found; no package-manager install.",
+      "build": "Stage static files into run output.",
+      "artifacts": [
+        "static site"
+      ],
+      "scope": [
+        "apps"
+      ],
+      "gate": "Prototype UI; not a native Wii binary.",
+      "platformTargets": {
+        "windows-x64": "Build depends on repository adapter and native dependencies",
+        "linux-x64": "Build depends on repository adapter and native dependencies",
+        "web-wasm32-webgpu": "No browser/WebGPU target identified"
+      }
+    },
+    {
+      "name": "WiiUDownloader",
+      "manifests": [
+        "go.mod",
+        "cmd/WiiUDownloader/go.mod",
+        "Dockerfile.linux",
+        "workflow"
+      ],
+      "hostDependencies": [
+        "go>=1.26",
+        "gcc",
+        "pkgconf"
+      ],
+      "nativeDependencies": [
+        "gtk4",
+        "libadwaita",
+        "glib2",
+        "gdk-pixbuf2",
+        "gobject-introspection",
+        "librsvg",
+        "libgcrypt"
+      ],
+      "setup": "Generated db.go is produced from external title data; never download it in an implicit build.",
+      "build": "go build ./... (root library); desktop command uses go build -C cmd/WiiUDownloader",
+      "artifacts": [
+        "Wii U downloader library/app"
+      ],
+      "scope": [
+        "all"
+      ],
+      "gate": "Wii U is a separate platform scope; missing generated DB blocks desktop app build.",
+      "platformTargets": {
+        "windows-x64": "Build depends on repository adapter and native dependencies",
+        "linux-x64": "Build depends on repository adapter and native dependencies",
+        "web-wasm32-webgpu": "No browser/WebGPU target identified"
+      }
+    }
+  ]
+}
+

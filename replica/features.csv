@@ -1,0 +1,23 @@
+feature,area,priority,original,clone,notes
+Animation de boot Wii avec jingle sonore,boot,must,Wii System Menu 4.3E,yes,Audio natif 48kHz et logo Wii pulsant
+Grille 4x3 de 48 canaux sur 4 pages,menu,must,SystemMenu-v514 (0000009a.app),yes,Grille 4x3 paginée avec BGM d'ambiance et curseur Wiimote
+Bannière interactive de chaîne (zoom 3D et jingle BNS),menu,must,U8 / BLYT banner (ipl.ash),yes,Zoom caméra perspective FOV 45deg et audio BNS
+Chaîne Disque lançant Budokai Tenkaichi 3,lecture,must,Wii Disc Channel (0000009b.app),yes,Lancement immédiat WebGPU 60 FPS sans glue JS
+Parsing et extraction de SystemMenu-v514.wad,wad,must,SystemMenu-v514.wad,yes,Lecture WAD header TMD tickets et extraction des 9 chunks .app en pure Rust avec décompression ASH0
+Exploitation de la reverse C du System Menu (BS2 layout scene),reverse,must,src/BS2 src/channelScript src/layout src/scene,yes,Portage des algorithmes de caméra grille et CHANSVm
+Pont Dolphin FFI in-process natif,emulation,must,Dolphin C++ Core,yes,wii_dolphin_ffi C ABI avec fenêtre winit/wgpu Direct3D 12 et Vulkan
+Moteur Gecko WASM WebGPU in-browser,emulation,must,gecko-core + gecko-web,yes,PowerPC 750CL Gekko JIT/interprété et pipeline GX vers WGSL
+Streaming HTTP Range 206 pour disques RVZ/ISO,streaming,must,Lecteur DVD Wii,yes,Mise en cache par tranches de 8 Mo pour boot instantané
+Effets sonores authentiques (hover select zip back),audio,must,Sound effects Wii (BNS / ADPCM),yes,Lecteur audio spatialisé en pure Rust
+Navigation au clavier et manette (Gamepad API / gilrs),accessibilite,must,Wiimote pointer,yes,Support manettes Bluetooth USB et gyroscopique
+Parametres Wii (format 16:9 480p backend WebGPU),reglages,must,SYSCONF (/shared2/sys/SYSCONF),yes,Sauvegarde persistante dans SQLite sysconf_settings
+Gestionnaire de memoire NAND (2174 blocs),stockage,must,Data Management Wii (iplMemory.cpp),yes,Calcul des blocs libres et sauvegardes de jeux
+Bureau Wii et journal d'activite quotidien,journal,should,Wii Message Board (iplBoard.cpp),yes,Historique des temps de jeu et memos journaliers
+Menu HOME en cours de jeu pour retour au menu,lecture,should,Wii Home Menu (HBMGUIManager.cpp),yes,Modale de suspension de jeu et jauge batterie Wiimote
+Menu Carte SD pour chaines et homebrews externes,stockage,should,SD Card Menu 4.3E,yes,Exploration de la carte SD virtuelle
+Protocoles réseau WiiConnect24 et Nintendo Wi-Fi,reseau,must,WiiConnect24 / DWC / NUS,yes,Protocoles WC24/DWC/NUS authentiques en pure Rust avec dérivation Friend Code CRC-32
+Wii Shop Channel et installateur NAND,boutique,must,Wii Shop Channel / HABA,yes,Catalogue local et installateur WAD vers NAND 2174 blocs avec calcul d'allocation 16 KiB
+Gestionnaire authentique de Mii (RFL),mii,must,Wii Mii Channel / RFL_DB.dat,yes,Format binaire RFL 74 octets checksum CRC-16 CCITT et base Plaza
+Exécution Broadway PowerPC 750CL en pure Rust,emulation,must,Broadway PowerPC 750CL,yes,Boot direct de DOL et WAD avec stepping instructions et inspection registres
+Packaging Edge Nginx pour streaming RVZ 8Mo,deploiement,must,Production Nginx,yes,Configuration slice 8m COOP/COEP et reverse proxy WebSocket NetPlay
+Emulation 100% de la ludotheque Wii dans le navigateur,emulation,could,Dolphin C++,skip,Cible sur les titres qualifies comme Budokai Tenkaichi 3

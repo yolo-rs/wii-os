@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "channels": [
+    {
+      "id": "disc-channel",
+      "appId": "disc-channel",
+      "title": "Chaîne disque",
+      "icon": "assets/images/channel-icon.png",
+      "contentKind": "wii-disc",
+      "contentPath": "/games/budokai-tenkaichi-3",
+      "titleId": "0001000052445350",
+      "blocks": 2480,
+      "publisher": "BANDAI / Spike",
+      "players": 2
+    },
+    {
+      "id": "mii-channel",
+      "appId": "mii-channel",
+      "title": "Chaîne Mii",
+      "icon": "assets/images/miichannel.jpg",
+      "contentKind": "wii-wad",
+      "contentPath": null,
+      "titleId": "0001000248414341",
+      "blocks": 42,
+      "publisher": "Nintendo",
+      "players": 4
+    },
+    {
+      "id": "photo-channel",
+      "appId": "photo-channel",
+      "title": "Chaîne photos",
+      "icon": "assets/images/channel-wiilogo.png",
+      "contentKind": "wii-wad",
+      "contentPath": null,
+      "titleId": "0001000248415941",
+      "blocks": 38,
+      "publisher": "Nintendo",
+      "players": 1
+    },
+    {
+      "id": "shop-channel",
+      "appId": "shop-channel",
+      "title": "Chaîne boutique Wii",
+      "icon": "assets/images/channel-wiilogo.png",
+      "contentKind": "wii-wad",
+      "contentPath": null,
+      "titleId": "0001000248414241",
+      "blocks": 68,
+      "publisher": "Nintendo",
+      "players": 1
+    },
+    {
+      "id": "weather-channel",
+      "appId": "weather-channel",
+      "title": "Chaîne météo",
+      "icon": "assets/images/channel-wiilogo.png",
+      "contentKind": "wii-wad",
+      "contentPath": null,
+      "titleId": "0001000248414641",
+      "blocks": 52,
+      "publisher": "Nintendo",
+      "players": 1
+    },
+    {
+      "id": "news-channel",
+      "appId": "news-channel",
+      "title": "Chaîne infos",
+      "icon": "assets/images/channel-wiilogo.png",
+      "contentKind": "wii-wad",
+      "contentPath": null,
+      "titleId": "0001000248414541",
+      "blocks": 46,
+      "publisher": "Nintendo",
+      "players": 1
+    }
+  ]
+}

@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "channels": [
+    {
+      "id": "budokai-tenkaichi-3-eu",
+      "appId": "budokai-tenkaichi-3",
+      "title": "Dragon Ball Z : Budokai Tenkaichi 3",
+      "icon": "assets/images/channel-icon.png",
+      "contentKind": "wii-disc",
+      "contentPath": "wii-os/userland/data/wii/roms/Dragon-Ball-Z-Budokai-Tenkaichi-3-Europe-En-Fr-De-Es-It.rvz",
+      "titleId": "RDSPAF",
+      "blocks": 3,
+      "publisher": "Bandai Namco / Spike (PAL EUR)",
+      "players": 4,
+      "preferredPage": 0,
+      "preferredSlot": 0
+    },
+    {
+      "id": "mii-channel-eu-v6",
+      "appId": "mii-channel",
+      "title": "Chaîne Mii",
+      "icon": "assets/images/miichannel.jpg",
+      "contentKind": "wii-wad",
+      "contentPath": "wii-os/userland/data/wii/wads/Official Channels/Mii Channel v6 HACA.wad",
+      "titleId": "0001000248414341",
+      "blocks": 42,
+      "publisher": "Nintendo",
+      "players": 4,
+      "preferredPage": 0,
+      "preferredSlot": 1
+    },
+    {
+      "id": "shop-channel-eu-v17",
+      "appId": "shop-channel",
+      "title": "Chaîne boutique Wii",
+      "icon": "assets/images/channel-wiilogo.png",
+      "contentKind": "wii-wad",
+      "contentPath": "wii-os/userland/data/wii/wads/Official Channels/Shop Channel v17 HABA.wad",
+      "titleId": "0001000248414241",
+      "blocks": 68,
+      "publisher": "Nintendo",
+      "players": 1,
+      "preferredPage": 0,
+      "preferredSlot": 2
+    },
+    {
+      "id": "homebrew-browser-eu",
+      "appId": "homebrew-browser",
+      "title": "Homebrew Browser",
+      "icon": "assets/user/channels/homebrew-browser/icon.png",
+      "contentKind": "homebrew",
+      "contentPath": "wii-os/userland/data/wii/brew/apps/homebrew-browser/boot.dol",
+      "titleId": null,
+      "blocks": 24,
+      "publisher": "Communauté Wii Homebrew",
+      "players": 1,
+      "preferredPage": 0,
+      "preferredSlot": 3
+    },
+    {
+      "id": "system-menu-eu-4-3",
+      "appId": "system-menu",
+      "title": "Menu Wii",
+      "icon": "assets/images/channel-wiilogo.png",
+      "contentKind": "wii-wad",
+      "contentPath": "wii-os/userland/data/wii/wads/System Software/SystemMenu-v514.wad",
+      "titleId": "0000000100000002",
+      "blocks": 212,
+      "publisher": "Nintendo",
+      "players": 4,
+      "preferredPage": 0,
+      "preferredSlot": 4,
+      "requiredFiles": [
+        {
+          "role": "system-ios",
+          "contentPath": "wii-os/userland/data/wii/wads/System Software/IOS80-64-v6944.wad"
+        }
+      ]
+    },
+    {
+      "id": "system-menu-installed-eu-4-3",
+      "appId": "system-menu-nand",
+      "title": "Menu Wii PAL 4.3E (NAND)",
+      "icon": "assets/images/channel-wiilogo.png",
+      "contentKind": "wii-nand-title",
+      "contentPath": null,
+      "titleId": "0000000100000002",
+      "blocks": 212,
+      "publisher": "Nintendo • Mémoire Système NAND",
+      "players": 4,
+      "preferredPage": 0,
+      "preferredSlot": 5
+    }
+  ]
+}

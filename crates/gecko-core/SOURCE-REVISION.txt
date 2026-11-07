@@ -1,0 +1,12 @@
+Source: Gecko emulator working tree consolidated into Wii OS
+Commit: 91950c6364d8a464d6eb0a666dbf3a6dec24d5bb
+Origin working tree: dirty at copy time; the working files and current browser changes were preserved
+Git metadata: intentionally not copied; Wii OS owns the consolidated source tree
+
+Internalized build inputs:
+- chipi-spec commit faaf9f1293b3a858264f51906838c2d12492c50e: DSP and Gekko instruction specifications copied into crates/common; MPL-2.0 notice is next to those files.
+- Dolphin commit 8d2ad1a662472955497e5bb79d7b9ec6999e1f0d: Gecko references the canonical Wii OS src/dolphin/Data/Sys/GC DSP fallback blobs instead of keeping a second Dolphin checkout.
+- solstice commit 9a44eeb775229e08ee80362e09e9fa29e16a41d0: the 4,664-byte custom HLE IPL asset is kept under assets/gecko/ipl and consumed by Gecko's existing HLE boot path.
+- beanwii's 3.27 GiB DSP test fixture checkout was not copied. The DSP test runner now accepts a DOL and DSP IROM path at runtime instead of requiring a private build-time fixture.
+
+The Gecko Rust crates are extracted into the Wii OS root workspace at crates/gecko-*. One Cargo.toml and one Cargo.lock now resolve Wii OS and Gecko Rust packages together.

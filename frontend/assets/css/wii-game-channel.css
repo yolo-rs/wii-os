@@ -1,0 +1,456 @@
+/* wii-game-channel.css — Interface Authentique Nintendo Wii (Zero AI Slop / Zero Tailwind / Zero Emojis) */
+
+:root {
+  --wii-font: "Asap", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --wii-text-color: #474747;
+  --wii-blue-glow: #00a4e4;
+  --wii-cursor: url(/assets/images/cursor.png), auto;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: #000000;
+  font-family: var(--wii-font);
+  cursor: var(--wii-cursor);
+}
+
+/* Conteneur principal 16:9 Wii */
+#wii-stage {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #000000;
+  overflow: hidden;
+}
+
+/* ========================================================
+   ÉCRAN DU BANNER DE CHAÎNE WII (DISC CHANNEL / BT3)
+   ======================================================== */
+#channel-banner-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background-color: #000000;
+  transition: opacity 400ms ease, transform 400ms ease;
+}
+
+#channel-banner-screen.booting {
+  opacity: 0;
+  transform: scale(1.08);
+  pointer-events: none;
+}
+
+/* Zone supérieure du Banner (80% hauteur) */
+.banner-viewport {
+  position: relative;
+  width: 100%;
+  height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #0b0f19;
+}
+
+/* Artwork officiel de la bannière Budokai Tenkaichi 3 */
+.banner-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+/* Bordures incurvées authentiques de la Wii */
+.border-topleft {
+  background-image: url(/assets/images/border-topleft.png);
+  width: 306px;
+  height: 230px;
+  top: 0;
+  left: 0;
+  position: absolute;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.border-topright {
+  background-image: url(/assets/images/border-topright.png);
+  width: 306px;
+  height: 230px;
+  top: 0;
+  right: 0;
+  position: absolute;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.border-bottomleft {
+  background-image: url(/assets/images/border-bottomleft.png);
+  width: 306px;
+  height: 230px;
+  bottom: 0;
+  left: 0;
+  position: absolute;
+  z-index: 60;
+  pointer-events: none;
+}
+
+.border-bottomright {
+  background-image: url(/assets/images/border-bottomright.png);
+  width: 306px;
+  height: 230px;
+  bottom: 0;
+  right: 0;
+  position: absolute;
+  z-index: 60;
+  pointer-events: none;
+}
+
+/* Indicateur subtil de lecture de disque Wii */
+.disc-read-indicator {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+}
+
+.disc-icon-spin {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  border-top-color: var(--wii-blue-glow);
+  animation: wii-spin 1.2s linear infinite;
+}
+
+.disc-read-text {
+  color: #f1f5f9;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+@keyframes wii-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ========================================================
+   BARRE INFÉRIEURE AUTHENTIQUE WII (SPLASH BAR)
+   ======================================================== */
+.splash-bar {
+  height: 20vh;
+  min-height: 100px;
+  box-sizing: border-box;
+  background-color: #d2d6db;
+  border-top: solid 2px #000000;
+  background-image: url(/assets/images/splash-bar.png);
+  background-repeat: repeat-x;
+  background-size: auto 100%;
+  position: relative;
+  z-index: 65;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.splash-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 90px;
+  width: 100%;
+  max-width: 800px;
+}
+
+/* Boutons authentiques Wii à 3 tranches (btn-left / btn-texture / btn-right) */
+.wii-btn {
+  background-image: url(/assets/images/btn-texture.png);
+  background-size: auto 100%;
+  background-color: transparent;
+  border: none;
+  outline: none;
+  height: 64px;
+  min-width: 180px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  text-decoration: none;
+  font-family: var(--wii-font);
+  color: var(--wii-text-color);
+  font-size: 22px;
+  font-weight: 600;
+  cursor: var(--wii-cursor);
+  transform: scale(1);
+  transition: transform 150ms ease, filter 150ms ease;
+  padding: 0 10px;
+}
+
+.wii-btn:hover:not(:disabled) {
+  transform: scale(1.08);
+  filter: brightness(1.06);
+}
+
+.wii-btn:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.wii-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.wii-btn::before {
+  background-image: url(/assets/images/btn-left.png);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  height: 64px;
+  width: 28px;
+  display: block;
+  content: "";
+  position: absolute;
+  left: -28px;
+  top: 0;
+}
+
+.wii-btn::after {
+  background-image: url(/assets/images/btn-right.png);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  height: 64px;
+  width: 28px;
+  display: block;
+  content: "";
+  position: absolute;
+  right: -28px;
+  top: 0;
+}
+
+/* Bouton principal "Démarrer" avec lueur bleue Wii */
+.wii-btn.primary {
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.wii-btn.primary:hover:not(:disabled)::before,
+.wii-btn.primary:hover:not(:disabled)::after {
+  filter: drop-shadow(0 0 6px rgba(0, 164, 228, 0.6));
+}
+
+/* Bouton fente de disque / changer de disque (discret, design Wii) */
+.disc-slot-btn {
+  position: absolute;
+  right: 28px;
+  bottom: 24px;
+  background: transparent;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-family: var(--wii-font);
+  font-size: 13px;
+  color: #474747;
+  cursor: var(--wii-cursor);
+  transition: all 150ms ease;
+}
+
+.disc-slot-btn:hover {
+  background: rgba(255, 255, 255, 0.4);
+  border-color: rgba(0, 0, 0, 0.4);
+}
+
+/* Input fichier masqué pour insertion disque */
+.hidden-file-input {
+  display: none;
+}
+
+/* ========================================================
+   CANVAS DE L'ÉMULATEUR WEBGPU
+   ======================================================== */
+#emulator-canvas {
+  width: 100vw !important;
+  height: 100vh !important;
+  position: fixed !important;
+  inset: 0 !important;
+  object-fit: contain !important;
+  background-color: #000000 !important;
+  outline: none !important;
+  z-index: 10;
+}
+
+/* ========================================================
+   MENU HOME OFFICIEL WII (OVERLAY EN JEU)
+   ======================================================== */
+#wii-home-menu {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  background: rgba(30, 32, 38, 0.88);
+  backdrop-filter: blur(10px);
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  opacity: 0;
+  transition: opacity 250ms ease;
+}
+
+#wii-home-menu.active {
+  display: flex;
+  opacity: 1;
+}
+
+.home-menu-dialog {
+  background: #f0f2f5;
+  border: 4px solid #c0c4cc;
+  border-radius: 28px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+  padding: 36px 48px;
+  width: min(560px, 92vw);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.home-menu-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 2px solid #d2d6db;
+  padding-bottom: 12px;
+  width: 100%;
+  justify-content: center;
+}
+
+.home-menu-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #333333;
+  letter-spacing: 0.5px;
+}
+
+.home-menu-options {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  align-items: center;
+}
+
+.home-option-btn {
+  background-image: url(/assets/images/btn-texture.png);
+  background-size: auto 100%;
+  background-color: transparent;
+  border: none;
+  outline: none;
+  height: 54px;
+  width: 260px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  text-decoration: none;
+  font-family: var(--wii-font);
+  color: var(--wii-text-color);
+  font-size: 18px;
+  font-weight: 600;
+  cursor: var(--wii-cursor);
+  transform: scale(1);
+  transition: transform 150ms ease;
+}
+
+.home-option-btn:hover {
+  transform: scale(1.06);
+}
+
+.home-option-btn::before {
+  background-image: url(/assets/images/btn-left.png);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  height: 54px;
+  width: 24px;
+  display: block;
+  content: "";
+  position: absolute;
+  left: -24px;
+  top: 0;
+}
+
+.home-option-btn::after {
+  background-image: url(/assets/images/btn-right.png);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+  height: 54px;
+  width: 24px;
+  display: block;
+  content: "";
+  position: absolute;
+  right: -24px;
+  top: 0;
+}
+
+/* Bouton HOME discret en haut à gauche en cours de jeu */
+#home-trigger-btn {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  padding: 6px 14px;
+  color: #ffffff;
+  font-family: var(--wii-font);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: var(--wii-cursor);
+  backdrop-filter: blur(6px);
+  transition: all 150ms ease;
+  display: none;
+}
+
+#home-trigger-btn:hover {
+  background: rgba(0, 164, 228, 0.65);
+  border-color: #ffffff;
+}
+
+/* Rideau noir de transition Wii */
+.wii-fade-black {
+  position: fixed;
+  inset: 0;
+  background-color: #000000;
+  z-index: 9999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
+
+.wii-fade-black.active {
+  opacity: 1;
+  pointer-events: auto;
+}
